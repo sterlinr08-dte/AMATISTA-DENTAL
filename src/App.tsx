@@ -74,9 +74,9 @@ export default function App() {
             <Menu size={24} />
           </button>
           <img
-            src={`${import.meta.env.BASE_URL}amatista-logo.svg`}
+            src={`${import.meta.env.BASE_URL}amatista-logo.png`}
             alt="Amatista Dental"
-            className="h-10 rounded-lg ring-1 ring-pink-500/20"
+            className="h-10 w-10 rounded-lg bg-white object-contain p-0.5 ring-1 ring-pink-500/20"
           />
         </header>
 

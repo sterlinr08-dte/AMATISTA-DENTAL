@@ -10,7 +10,7 @@ import Modal from '../components/Modal'
 
 const vacio = {
   nombre: '',
-  categoria: 'Cabello',
+  categoria: 'General',
   descripcion: '',
   duracion_min: 30,
   precio: 0,
@@ -189,7 +189,7 @@ export default function Servicios() {
         <div className="space-y-4">
           <div>
             <label className="label">Nombre</label>
-            <input className="input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Corte de cabello" />
+            <input className="input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Limpieza dental" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

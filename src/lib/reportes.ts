@@ -55,7 +55,7 @@ export function imprimirTabla(opts: {
     @page { size: A4 ${orientacion}; margin: 12mm; }
     * { box-sizing: border-box; }
     body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color:#111; margin:0; }
-    .hd { text-align:center; margin-bottom:8px; border-bottom:2px solid #c026d3; padding-bottom:6px; }
+    .hd { text-align:center; margin-bottom:8px; border-bottom:2px solid #a9851f; padding-bottom:6px; }
     .hd h2 { margin:0; font-size:18px; color:#86198f; }
     .hd p { margin:1px 0; font-size:11px; color:#555; }
     h1 { font-size:15px; margin:12px 0 2px; }

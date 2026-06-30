@@ -22,7 +22,7 @@ export const NEGOCIO = {
   whatsapp: '',
   instagram: '',
   rnc: '', // Coloca aquí el RNC si aplica (aparece en los tickets)
-  logo: 'amatista-logo.svg',
+  logo: 'amatista-logo.png',
   ancho_ticket: 58, // mm del papel térmico (58 u 80)
   auto_imprimir: true, // imprimir el recibo automáticamente al cobrar
 }

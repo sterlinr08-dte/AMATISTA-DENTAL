@@ -245,7 +245,7 @@ export default function CuentasPorCobrar() {
           <div className="space-y-3">
             <div id="recibo-abono" className="print-area space-y-2 rounded-xl border border-slate-100 p-3 text-sm">
               <div className="text-center">
-                <img src={`${import.meta.env.BASE_URL}${negocio.logo}`} alt={negocio.nombre} className="mx-auto mb-1 h-14 rounded-lg bg-black object-contain" />
+                <img src={`${import.meta.env.BASE_URL}${negocio.logo}`} alt={negocio.nombre} className="mx-auto mb-1 h-14 rounded-lg bg-white object-contain" />
                 <p className="font-display text-base font-bold text-brand-800">{negocio.nombre}</p>
                 {negocio.rnc && <p className="text-xs text-slate-500">RNC: {negocio.rnc}</p>}
                 <p className="text-xs text-slate-500">Tel/WhatsApp: {negocio.telefono}</p>

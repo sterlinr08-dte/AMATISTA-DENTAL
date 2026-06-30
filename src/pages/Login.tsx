@@ -34,7 +34,7 @@ export default function Login() {
             <img
               src={`${import.meta.env.BASE_URL}${negocio.logo}`}
               alt={negocio.nombre}
-              className="logo-glow mb-4 w-52 max-w-full rounded-2xl bg-black object-contain p-2 ring-1 ring-white/10"
+              className="logo-glow mb-4 w-52 max-w-full rounded-2xl bg-white object-contain p-2 ring-1 ring-white/10"
             />
             <h1 className="font-display text-2xl font-bold tracking-tight text-white">{negocio.nombre}</h1>
             <p className="mt-1 text-sm text-white/50">Inicia sesión para administrar el salón</p>

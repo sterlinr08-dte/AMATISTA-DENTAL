@@ -10,7 +10,7 @@ export default function Cargando({ texto = 'Cargando…', className = '' }: Prop
       <div className="relative">
         <span className="absolute inset-0 animate-ping rounded-full bg-pink-400/30" />
         <img
-          src={`${import.meta.env.BASE_URL}amatista-logo.svg`}
+          src={`${import.meta.env.BASE_URL}amatista-logo.png`}
           alt="Cargando"
           className="relative h-16 w-16 animate-spin rounded-full object-cover ring-2 ring-pink-400/40 shadow-[0_0_24px_2px_rgba(201,162,39,0.45)]"
           style={{ animationDuration: '1.1s' }}

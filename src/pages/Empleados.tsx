@@ -9,16 +9,16 @@ import Modal from '../components/Modal'
 
 const vacio = {
   nombre: '',
-  puesto: 'Estilista',
+  puesto: 'Odontólogo/a',
   telefono: '',
   email: '',
   especialidad: '',
-  color: '#d946ef',
+  color: '#C9A227',
   comision_pct: 0,
   activo: true,
 }
 
-const puestos = ['Estilista', 'Manicurista', 'Esteticista', 'Maquillista', 'Barbero', 'Recepción', 'Gerente']
+const puestos = ['Odontólogo/a', 'Odontólogo especialista', 'Higienista dental', 'Asistente dental', 'Recepción', 'Gerente']
 
 interface PerfilEmp { id: string; username: string | null; rol_key: string | null; activo: boolean }
 interface RolItem { key: string; nombre: string }
@@ -90,7 +90,7 @@ export default function Empleados() {
       telefono: e.telefono ?? '',
       email: e.email ?? '',
       especialidad: e.especialidad ?? '',
-      color: e.color ?? '#d946ef',
+      color: e.color ?? '#C9A227',
       comision_pct: Number(e.comision_pct),
       activo: e.activo,
     })
@@ -206,7 +206,7 @@ export default function Empleados() {
               <div className="flex items-start gap-3">
                 <div
                   className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white"
-                  style={{ backgroundColor: e.color ?? '#d946ef' }}
+                  style={{ backgroundColor: e.color ?? '#C9A227' }}
                 >
                   {e.nombre.charAt(0).toUpperCase()}
                 </div>

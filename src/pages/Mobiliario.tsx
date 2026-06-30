@@ -270,7 +270,7 @@ export default function Mobiliario() {
 
           <div>
             <label className="label">Nombre</label>
-            <input className="input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Silla de estilista" />
+            <input className="input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Sillón dental" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

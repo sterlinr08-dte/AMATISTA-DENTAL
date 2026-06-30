@@ -1,4 +1,4 @@
-// Tipos de dominio para DELUXE BEAUTY CENTER
+// Tipos de dominio para AMATISTA DENTAL
 
 export type EstadoCita = 'PENDIENTE' | 'CONFIRMADA' | 'COMPLETADA' | 'CANCELADA'
 

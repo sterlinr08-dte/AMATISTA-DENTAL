@@ -78,15 +78,15 @@ export default function Sidebar({ open, onClose }: Props) {
       {open && <div className="fixed inset-0 z-30 bg-slate-900/50 lg:hidden" onClick={onClose} />}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col bg-gradient-to-b from-[#0b0710] via-[#160a15] to-[#0b0710] text-brand-100 shadow-[8px_0_30px_-12px_rgba(236,72,153,0.35)] ring-1 ring-pink-500/10 transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col bg-gradient-to-b from-[#0b0710] via-[#160a15] to-[#0b0710] text-brand-100 shadow-[8px_0_30px_-12px_rgba(201,162,39,0.35)] ring-1 ring-pink-500/10 transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="relative px-5 py-6">
           <img
-            src={`${import.meta.env.BASE_URL}amatista-logo.svg`}
+            src={`${import.meta.env.BASE_URL}amatista-logo.png`}
             alt="Amatista Dental"
-            className="logo-glow mx-auto aspect-square w-28 rounded-full object-cover ring-1 ring-pink-500/25"
+            className="logo-glow mx-auto aspect-square w-28 rounded-2xl bg-white object-contain p-3 ring-1 ring-pink-500/25"
           />
           <button onClick={onClose} className="absolute right-3 top-3 rounded-lg p-1 text-brand-200 hover:bg-white/10 lg:hidden">
             <X size={22} />
@@ -107,7 +107,7 @@ export default function Sidebar({ open, onClose }: Props) {
                     className={({ isActive }) =>
                       `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
                         isActive
-                          ? 'bg-gradient-to-r from-pink-500 to-fuchsia-600 text-white ring-1 ring-pink-300/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_18px_-6px_rgba(236,72,153,0.65)]'
+                          ? 'bg-gradient-to-r from-pink-500 to-fuchsia-600 text-white ring-1 ring-pink-300/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_18px_-6px_rgba(201,162,39,0.65)]'
                           : 'text-brand-200 hover:bg-white/5 hover:text-white hover:translate-x-0.5'
                       }`
                     }

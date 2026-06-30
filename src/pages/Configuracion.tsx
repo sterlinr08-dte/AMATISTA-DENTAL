@@ -910,7 +910,7 @@ export default function Configuracion() {
       <Modal open={pruebaOpen} title="Página de prueba" onClose={() => setPruebaOpen(false)}>
         <div className="space-y-3">
           <div className="print-area space-y-1 rounded-xl border border-slate-100 p-3 text-center text-sm">
-            <img src={`${import.meta.env.BASE_URL}${negocio.logo}`} alt={negocio.nombre} className="mx-auto mb-1 h-14 rounded-lg bg-black object-contain" />
+            <img src={`${import.meta.env.BASE_URL}${negocio.logo}`} alt={negocio.nombre} className="mx-auto mb-1 h-14 rounded-lg bg-white object-contain" />
             <p className="font-display text-base font-bold text-brand-800">{negocio.nombre}</p>
             <p className="text-xs font-semibold text-slate-600">PRUEBA DE IMPRESIÓN</p>
             <p className="text-xs text-slate-600">Ancho configurado: {negocio.ancho_ticket} mm</p>

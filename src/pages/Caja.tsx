@@ -601,7 +601,7 @@ export default function Caja() {
             {/* Recibo imprimible */}
             <div id="recibo-print" className="print-area space-y-2 rounded-xl border border-slate-100 p-3 text-sm">
               <div className="text-center">
-                <img src={`${import.meta.env.BASE_URL}${negocio.logo}`} alt={negocio.nombre} className="mx-auto mb-1 h-14 rounded-lg bg-black object-contain" />
+                <img src={`${import.meta.env.BASE_URL}${negocio.logo}`} alt={negocio.nombre} className="mx-auto mb-1 h-14 rounded-lg bg-white object-contain" />
                 <p className="font-display text-base font-bold text-brand-800">{negocio.nombre}</p>
                 {negocio.rnc && <p className="text-xs text-slate-500">RNC: {negocio.rnc}</p>}
                 <p className="text-xs text-slate-500">Tel/WhatsApp: {negocio.telefono}</p>
@@ -681,7 +681,7 @@ export default function Caja() {
             )}
 
             {/* Total grande (monto a pagar ahora) */}
-            <div className="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-500 px-5 py-4 text-center text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_14px_30px_-12px_rgba(236,72,153,0.6)]">
+            <div className="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-500 px-5 py-4 text-center text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_14px_30px_-12px_rgba(201,162,39,0.6)]">
               <p className="text-xs uppercase tracking-widest text-white/80">{esCredito ? 'A pagar ahora' : 'Total a cobrar'}</p>
               <p className="text-3xl font-extrabold">{money(cobroTotal)}</p>
             </div>
@@ -701,7 +701,7 @@ export default function Caja() {
                         onClick={() => setMetodoCobro(m)}
                         className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-xs font-semibold transition ${
                           activo
-                            ? 'border-brand-400 bg-brand-50 text-brand-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_6px_14px_-4px_rgba(236,72,153,0.35)]'
+                            ? 'border-brand-400 bg-brand-50 text-brand-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_6px_14px_-4px_rgba(201,162,39,0.35)]'
                             : 'border-slate-200 bg-white text-slate-500 hover:border-pink-200'
                         }`}
                       >
@@ -859,7 +859,7 @@ export default function Caja() {
           return (
             <div className="print-area space-y-3">
               <div className="text-center">
-                <img src={`${import.meta.env.BASE_URL}${negocio.logo}`} alt={negocio.nombre} className="mx-auto mb-2 h-16 rounded-lg bg-black object-contain" />
+                <img src={`${import.meta.env.BASE_URL}${negocio.logo}`} alt={negocio.nombre} className="mx-auto mb-2 h-16 rounded-lg bg-white object-contain" />
                 <p className="font-display text-lg font-bold text-brand-800">{negocio.nombre}</p>
                 <p className="text-xs font-medium text-slate-600">Comprobante de cierre de caja {conPrefijo(negocio.prefijo_caja, verCierre.numero)}</p>
               </div>

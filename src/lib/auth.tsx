@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signOut() {
     await supabase.auth.signOut()
     setPerfil(null)
-    // Volver a la puerta central (NEXUS) en vez de quedarse en el login de Deluxe.
+    // Volver a la puerta central (NEXUS) en vez de quedarse en el login de Amatista.
     window.location.href = 'https://nexusprord.com'
   }
 
