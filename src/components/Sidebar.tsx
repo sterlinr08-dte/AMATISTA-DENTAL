@@ -78,7 +78,7 @@ export default function Sidebar({ open, onClose }: Props) {
       {open && <div className="fixed inset-0 z-30 bg-slate-900/50 lg:hidden" onClick={onClose} />}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col bg-gradient-to-b from-[#0b0710] via-[#160a15] to-[#0b0710] text-brand-100 shadow-[8px_0_30px_-12px_rgba(201,162,39,0.35)] ring-1 ring-pink-500/10 transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r border-amber-100 bg-gradient-to-b from-white to-amber-50/50 text-slate-700 shadow-[8px_0_30px_-12px_rgba(201,162,39,0.18)] transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -88,7 +88,7 @@ export default function Sidebar({ open, onClose }: Props) {
             alt="Amatista Dental"
             className="logo-glow mx-auto aspect-square w-28 rounded-2xl bg-white object-contain p-3 ring-1 ring-pink-500/25"
           />
-          <button onClick={onClose} className="absolute right-3 top-3 rounded-lg p-1 text-brand-200 hover:bg-white/10 lg:hidden">
+          <button onClick={onClose} className="absolute right-3 top-3 rounded-lg p-1 text-slate-500 hover:bg-amber-50 lg:hidden">
             <X size={22} />
           </button>
         </div>
@@ -96,7 +96,7 @@ export default function Sidebar({ open, onClose }: Props) {
         <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-2">
           {visibles.map((g) => (
             <div key={g.titulo}>
-              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-brand-400">{g.titulo}</p>
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600">{g.titulo}</p>
               <div className="space-y-1">
                 {g.links.map(({ to, label, icon: Icon, end }) => (
                   <NavLink
@@ -108,7 +108,7 @@ export default function Sidebar({ open, onClose }: Props) {
                       `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
                         isActive
                           ? 'bg-gradient-to-r from-pink-500 to-fuchsia-600 text-white ring-1 ring-pink-300/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_18px_-6px_rgba(201,162,39,0.65)]'
-                          : 'text-brand-200 hover:bg-white/5 hover:text-white hover:translate-x-0.5'
+                          : 'text-slate-600 hover:bg-amber-50 hover:text-slate-900 hover:translate-x-0.5'
                       }`
                     }
                   >
@@ -121,16 +121,16 @@ export default function Sidebar({ open, onClose }: Props) {
           ))}
         </nav>
 
-        <div className="space-y-2 border-t border-white/10 px-3 py-4">
+        <div className="space-y-2 border-t border-amber-100 px-3 py-4">
           {perfil?.rol_nombre && (
-            <p className="px-3 text-xs font-semibold text-gold-400">{perfil.rol_nombre}</p>
+            <p className="px-3 text-xs font-semibold text-amber-700">{perfil.rol_nombre}</p>
           )}
           {(perfil?.username || perfil?.nombre) && (
-            <p className="truncate px-3 text-xs text-brand-300">{perfil?.nombre || perfil?.username}{perfil?.username ? ` · ${perfil.username}` : ''}</p>
+            <p className="truncate px-3 text-xs text-slate-500">{perfil?.nombre || perfil?.username}{perfil?.username ? ` · ${perfil.username}` : ''}</p>
           )}
           <button
             onClick={signOut}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-brand-200 transition hover:bg-white/5 hover:text-white"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-amber-50 hover:text-slate-900"
           >
             <LogOut size={18} />
             Cerrar sesión
