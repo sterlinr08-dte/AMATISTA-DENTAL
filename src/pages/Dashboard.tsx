@@ -64,7 +64,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-gradient-to-br from-white via-amber-50/60 to-amber-100/60 px-7 py-8 text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_24px_48px_-14px_rgba(201,162,39,0.30)]">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-white px-7 py-8 text-slate-800 shadow-[0_18px_42px_-18px_rgba(201,162,39,0.30)]">
         <div>
           <p className="text-sm uppercase tracking-[0.25em] text-amber-600">{negocio.nombre}</p>
           <h1 className="mt-1 font-display text-3xl font-bold">Bienvenida 🦷</h1>
