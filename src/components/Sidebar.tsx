@@ -82,11 +82,11 @@ export default function Sidebar({ open, onClose }: Props) {
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="relative px-5 py-6">
+        <div className="relative border-b border-amber-100 px-5 py-5">
           <img
             src={`${import.meta.env.BASE_URL}amatista-logo.png`}
             alt="Amatista Dental"
-            className="logo-glow mx-auto aspect-square w-28 rounded-2xl bg-white object-contain p-3 ring-1 ring-pink-500/25"
+            className="logo-glow mx-auto aspect-square w-24 rounded-2xl bg-white object-contain p-2.5 ring-1 ring-amber-200"
           />
           <button onClick={onClose} className="absolute right-3 top-3 rounded-lg p-1 text-slate-500 hover:bg-amber-50 lg:hidden">
             <X size={22} />
@@ -105,15 +105,19 @@ export default function Sidebar({ open, onClose }: Props) {
                     end={end}
                     onClick={onClose}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+                      `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-150 ${
                         isActive
-                          ? 'bg-gradient-to-r from-pink-500 to-fuchsia-600 text-white ring-1 ring-pink-300/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_18px_-6px_rgba(201,162,39,0.65)]'
-                          : 'text-slate-600 hover:bg-amber-50 hover:text-slate-900 hover:translate-x-0.5'
+                          ? 'bg-gradient-to-r from-amber-100 to-amber-50 text-amber-900 ring-1 ring-amber-300/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_6px_14px_-6px_rgba(201,162,39,0.45)]'
+                          : 'text-slate-600 hover:bg-amber-50/70 hover:text-amber-800 hover:translate-x-0.5'
                       }`
                     }
                   >
-                    <Icon size={18} />
-                    {label}
+                    {({ isActive }) => (
+                      <>
+                        <Icon size={18} className={isActive ? 'text-amber-600' : 'text-amber-500/80 group-hover:text-amber-600'} />
+                        {label}
+                      </>
+                    )}
                   </NavLink>
                 ))}
               </div>
