@@ -2,7 +2,7 @@
 // Crea, actualiza y elimina usuarios (login por nombre de usuario) — solo administradores.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const DOMINIO = '@deluxe.local'
+const DOMINIO = '@amatista.local'
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
