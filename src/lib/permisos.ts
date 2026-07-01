@@ -16,6 +16,7 @@ export const MODULOS: Modulo[] = [
   { key: 'periodontograma', label: 'Periodontograma', path: '/periodontograma' },
   { key: 'imagenes', label: 'Imágenes / Radiografías', path: '/imagenes' },
   { key: 'recetas', label: 'Recetas', path: '/recetas' },
+  { key: 'consentimientos', label: 'Consentimientos', path: '/consentimientos' },
   { key: 'alertas', label: 'Alertas', path: '/alertas' },
   { key: 'seguimiento', label: 'Seguimiento de planes', path: '/seguimiento' },
   { key: 'servicios', label: 'Tratamientos y precios', path: '/servicios' },

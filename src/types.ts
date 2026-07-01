@@ -461,3 +461,20 @@ export interface Alerta {
   activa: boolean
   created_at: string
 }
+
+// Consentimiento informado firmado por el paciente.
+export interface Consentimiento {
+  id: string
+  cliente_id: string
+  empleado_id: string | null
+  fecha: string
+  tipo: string | null
+  titulo: string
+  texto: string
+  firmante: string | null
+  firma: string | null // imagen de la firma (data URL PNG)
+  firmado_at: string | null
+  notas: string | null
+  created_at: string
+  updated_at: string
+}

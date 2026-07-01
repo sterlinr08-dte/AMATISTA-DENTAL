@@ -11,6 +11,7 @@ import Presupuestos from './pages/Presupuestos'
 import Periodontograma from './pages/Periodontograma'
 import ImagenesPaciente from './pages/ImagenesPaciente'
 import Recetas from './pages/Recetas'
+import Consentimientos from './pages/Consentimientos'
 import Alertas from './pages/Alertas'
 import Seguimiento from './pages/Seguimiento'
 import Servicios from './pages/Servicios'
@@ -103,6 +104,7 @@ export default function App() {
               <Route path="/periodontograma" element={<Protegido modulo="periodontograma"><Periodontograma /></Protegido>} />
               <Route path="/imagenes" element={<Protegido modulo="imagenes"><ImagenesPaciente /></Protegido>} />
               <Route path="/recetas" element={<Protegido modulo="recetas"><Recetas /></Protegido>} />
+              <Route path="/consentimientos" element={<Protegido modulo="consentimientos"><Consentimientos /></Protegido>} />
               <Route path="/alertas" element={<Protegido modulo="alertas"><Alertas /></Protegido>} />
               <Route path="/seguimiento" element={<Protegido modulo="seguimiento"><Seguimiento /></Protegido>} />
               <Route path="/servicios" element={<Protegido modulo="servicios"><Servicios /></Protegido>} />
