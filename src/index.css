@@ -19,6 +19,39 @@ body {
   background-attachment: fixed;
 }
 
+/* ===== Subventanas (modales) ===== */
+/* El contenido de fondo se desliza suavemente a la izquierda mientras hay
+   una subventana flotante abierta, para dar sensación de profundidad. */
+.contenido-principal {
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+body.modal-abierto .contenido-principal {
+  transform: translateX(-44px);
+}
+/* En pantallas pequeñas la subventana ocupa todo: no desplazar el fondo. */
+@media (max-width: 1024px) {
+  body.modal-abierto .contenido-principal {
+    transform: none;
+  }
+}
+
+/* Entrada del velo y del panel de la subventana */
+@keyframes modalFondoIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalPanelIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-modal-fondo {
+  animation: modalFondoIn 0.2s ease-out;
+}
+.animate-modal-panel {
+  animation: modalPanelIn 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* Barra de desplazamiento fina dorada */
 * {
   scrollbar-width: thin;

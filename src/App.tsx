@@ -95,7 +95,7 @@ export default function App() {
         </header>
 
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+          <div className="contenido-principal mx-auto max-w-[1600px] px-4 py-6 sm:px-6 sm:py-8">
             <Routes>
               <Route path="/" element={<Protegido modulo="panel"><Dashboard /></Protegido>} />
               <Route path="/citas" element={<Protegido modulo="citas"><Citas /></Protegido>} />
