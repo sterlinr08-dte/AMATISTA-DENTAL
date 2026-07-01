@@ -81,16 +81,16 @@ export default function App() {
       <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 bg-gradient-to-r from-[#d9b64a] via-[#c9a227] to-[#b08d1c] px-4 py-2.5 shadow-md">
+        <header className="relative z-10 flex items-center gap-3 border-b-2 border-[#9c7d18] bg-[linear-gradient(100deg,rgba(255,255,255,0.2),transparent_45%),linear-gradient(180deg,#e6c356,#c9a227_58%,#b8901f)] px-4 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_8px_18px_-6px_rgba(176,141,28,0.65)]">
           <button onClick={() => setMenuOpen(true)} className="rounded-lg p-1.5 text-white hover:bg-white/20 lg:hidden" aria-label="Abrir menú">
             <Menu size={24} />
           </button>
           <img
             src={`${import.meta.env.BASE_URL}amatista-logo.png`}
             alt="Amatista Dental"
-            className="h-9 w-9 rounded-lg bg-white object-contain p-0.5 shadow ring-1 ring-white/50"
+            className="h-9 w-9 rounded-lg bg-white object-contain p-0.5 shadow-[0_4px_10px_-3px_rgba(0,0,0,0.4),inset_0_1px_0_#fff] ring-1 ring-white/60"
           />
-          <span className="text-lg font-semibold tracking-wide text-white">Amatista Dental</span>
+          <span className="text-lg font-semibold tracking-wide text-white [text-shadow:0_1px_2px_rgba(120,90,10,0.45)]">Amatista Dental</span>
         </header>
 
         <main className="flex-1 overflow-y-auto">

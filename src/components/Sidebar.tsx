@@ -90,7 +90,7 @@ export default function Sidebar({ open, onClose }: Props) {
       {open && <div className="fixed inset-0 z-30 bg-slate-900/50 lg:hidden" onClick={onClose} />}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r border-[#a8841a] bg-gradient-to-b from-[#d9b64a] via-[#c9a227] to-[#b08d1c] text-amber-50 shadow-[8px_0_30px_-12px_rgba(176,141,28,0.5)] transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r-2 border-[#9c7d18] bg-[linear-gradient(105deg,rgba(255,255,255,0.18),transparent_42%),linear-gradient(165deg,#e6c356,#cfa62b_45%,#b8901f)] text-amber-50 shadow-[inset_1px_1px_0_rgba(255,255,255,0.45),inset_-7px_0_18px_-10px_rgba(0,0,0,0.4),10px_0_34px_-12px_rgba(176,141,28,0.6)] transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -98,7 +98,7 @@ export default function Sidebar({ open, onClose }: Props) {
           <img
             src={`${import.meta.env.BASE_URL}amatista-logo.png`}
             alt="Amatista Dental"
-            className="mx-auto aspect-square w-24 rounded-2xl bg-white object-contain p-2.5 shadow-md ring-1 ring-white/60"
+            className="mx-auto aspect-square w-24 rounded-2xl bg-white object-contain p-2.5 shadow-[0_8px_18px_-6px_rgba(0,0,0,0.4),inset_0_1px_0_#fff] ring-1 ring-white/70"
           />
           <button onClick={onClose} className="absolute right-3 top-3 rounded-lg p-1 text-white/90 hover:bg-white/20 lg:hidden">
             <X size={22} />
@@ -119,8 +119,8 @@ export default function Sidebar({ open, onClose }: Props) {
                     className={({ isActive }) =>
                       `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-150 ${
                         isActive
-                          ? 'bg-white text-amber-800 shadow-[0_6px_14px_-6px_rgba(0,0,0,0.4)]'
-                          : 'text-amber-50 hover:bg-white/15 hover:text-white hover:translate-x-0.5'
+                          ? 'bg-white text-amber-800 shadow-[0_5px_12px_-3px_rgba(0,0,0,0.45),inset_0_1px_0_#fff] -translate-y-px'
+                          : 'text-amber-50 [text-shadow:0_1px_1px_rgba(120,90,10,0.4)] hover:-translate-y-px hover:bg-white/15 hover:text-white hover:shadow-[0_4px_10px_-4px_rgba(0,0,0,0.35)]'
                       }`
                     }
                   >
