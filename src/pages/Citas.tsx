@@ -9,6 +9,7 @@ import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
 import Modal from '../components/Modal'
 import Paginacion, { usePaginacion } from '../components/Paginacion'
+import SelectorPaciente from '../components/SelectorPaciente'
 
 const SELECT = `*,
   cliente:clientes(id,nombre,telefono),
@@ -344,12 +345,7 @@ export default function Citas() {
         <div className="space-y-4">
           <div>
             <label className="label">Cliente</label>
-            <select className="input" value={form.cliente_id} onChange={(e) => setForm({ ...form, cliente_id: e.target.value })}>
-              <option value="">— Selecciona —</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
+            <SelectorPaciente clientes={clientes} value={form.cliente_id} onChange={(id) => setForm({ ...form, cliente_id: id })} />
           </div>
           <div>
             <label className="label">Servicios (cada uno con su empleado)</label>

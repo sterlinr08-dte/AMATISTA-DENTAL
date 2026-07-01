@@ -10,6 +10,7 @@ import Cargando from '../components/Cargando'
 import Modal from '../components/Modal'
 import DataTable from '../components/DataTable'
 import type { Columna } from '../components/DataTable'
+import SelectorPaciente from '../components/SelectorPaciente'
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -384,14 +385,7 @@ export default function Consentimientos() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Paciente</label>
-              <select className="input" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
-                <option value="">— Selecciona —</option>
-                {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
+              <SelectorPaciente clientes={clientes} value={clienteId} onChange={setClienteId} />
             </div>
             <div>
               <label className="label">Profesional</label>

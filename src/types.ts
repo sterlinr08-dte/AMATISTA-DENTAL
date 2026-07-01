@@ -37,6 +37,12 @@ export interface Cliente {
   telefono: string | null
   email: string | null
   fecha_nacimiento: string | null
+  cedula: string | null
+  sexo: string | null
+  direccion: string | null
+  contacto_emergencia: string | null
+  telefono_emergencia: string | null
+  seguro_ars: string | null
   notas: string | null
   created_at: string
   updated_at: string

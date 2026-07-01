@@ -12,9 +12,15 @@ import DataTable from '../components/DataTable'
 
 const vacio = {
   nombre: '',
+  cedula: '',
+  sexo: '',
   telefono: '',
   email: '',
   fecha_nacimiento: '',
+  direccion: '',
+  contacto_emergencia: '',
+  telefono_emergencia: '',
+  seguro_ars: '',
   notas: '',
 }
 
@@ -51,9 +57,15 @@ export default function Clientes() {
     setEditId(c.id)
     setForm({
       nombre: c.nombre,
+      cedula: c.cedula ?? '',
+      sexo: c.sexo ?? '',
       telefono: c.telefono ?? '',
       email: c.email ?? '',
       fecha_nacimiento: c.fecha_nacimiento ?? '',
+      direccion: c.direccion ?? '',
+      contacto_emergencia: c.contacto_emergencia ?? '',
+      telefono_emergencia: c.telefono_emergencia ?? '',
+      seguro_ars: c.seguro_ars ?? '',
       notas: c.notas ?? '',
     })
     setOpen(true)
@@ -64,9 +76,15 @@ export default function Clientes() {
     setSaving(true)
     const payload = {
       nombre: form.nombre,
+      cedula: form.cedula || null,
+      sexo: form.sexo || null,
       telefono: form.telefono || null,
       email: form.email || null,
       fecha_nacimiento: form.fecha_nacimiento || null,
+      direccion: form.direccion || null,
+      contacto_emergencia: form.contacto_emergencia || null,
+      telefono_emergencia: form.telefono_emergencia || null,
+      seguro_ars: form.seguro_ars || null,
       notas: form.notas || null,
     }
     const { error } = editId
@@ -145,26 +163,66 @@ export default function Clientes() {
       >
         <div className="space-y-4">
           <div>
-            <label className="label">Nombre</label>
+            <label className="label">Nombre completo</label>
             <input className="input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Cédula / documento</label>
+              <input className="input" value={form.cedula} onChange={(e) => setForm({ ...form, cedula: e.target.value })} placeholder="000-0000000-0" />
+            </div>
+            <div>
+              <label className="label">Sexo</label>
+              <select className="input" value={form.sexo} onChange={(e) => setForm({ ...form, sexo: e.target.value })}>
+                <option value="">—</option>
+                <option value="Femenino">Femenino</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Teléfono</label>
-              <input className="input" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
+              <input className="input" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} placeholder="809-000-0000" />
             </div>
             <div>
               <label className="label">Fecha de nacimiento</label>
               <input type="date" className="input" value={form.fecha_nacimiento} onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })} />
             </div>
           </div>
+
           <div>
             <label className="label">Email</label>
             <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </div>
+
+          <div>
+            <label className="label">Dirección</label>
+            <input className="input" value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} placeholder="Calle, sector, ciudad" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Contacto de emergencia</label>
+              <input className="input" value={form.contacto_emergencia} onChange={(e) => setForm({ ...form, contacto_emergencia: e.target.value })} placeholder="Nombre" />
+            </div>
+            <div>
+              <label className="label">Tel. de emergencia</label>
+              <input className="input" value={form.telefono_emergencia} onChange={(e) => setForm({ ...form, telefono_emergencia: e.target.value })} placeholder="809-000-0000" />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Seguro / ARS</label>
+            <input className="input" value={form.seguro_ars} onChange={(e) => setForm({ ...form, seguro_ars: e.target.value })} placeholder="Ej. ARS Humano, Senasa…" />
+          </div>
+
           <div>
             <label className="label">Notas</label>
-            <textarea className="input" rows={2} value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} placeholder="Preferencias, alergias, etc." />
+            <textarea className="input" rows={2} value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} placeholder="Observaciones generales" />
           </div>
         </div>
       </Modal>

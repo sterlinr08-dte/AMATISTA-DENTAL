@@ -6,6 +6,7 @@ import { fechaCorta, codigoCliente } from '../lib/format'
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
 import Modal from '../components/Modal'
+import SelectorPaciente from '../components/SelectorPaciente'
 
 type TipoAlerta = Alerta['tipo']
 
@@ -213,18 +214,11 @@ export default function Alertas() {
         <div className="space-y-4">
           <div>
             <label className="label">Paciente</label>
-            <select
-              className="input"
+            <SelectorPaciente
+              clientes={clientes}
               value={form.cliente_id}
-              onChange={(e) => setForm({ ...form, cliente_id: e.target.value })}
-            >
-              <option value="">Selecciona un paciente…</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {codigoCliente(c.codigo)} — {c.nombre}
-                </option>
-              ))}
-            </select>
+              onChange={(id) => setForm({ ...form, cliente_id: id })}
+            />
           </div>
           <div>
             <label className="label">Tipo</label>
