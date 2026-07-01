@@ -8,6 +8,9 @@ import Clientes from './pages/Clientes'
 import Odontograma from './pages/Odontograma'
 import HistoriaClinica from './pages/HistoriaClinica'
 import Presupuestos from './pages/Presupuestos'
+import Periodontograma from './pages/Periodontograma'
+import ImagenesPaciente from './pages/ImagenesPaciente'
+import Recetas from './pages/Recetas'
 import Servicios from './pages/Servicios'
 import Articulos from './pages/Articulos'
 import Mobiliario from './pages/Mobiliario'
@@ -95,6 +98,9 @@ export default function App() {
               <Route path="/odontograma" element={<Protegido modulo="odontograma"><Odontograma /></Protegido>} />
               <Route path="/historia" element={<Protegido modulo="historia"><HistoriaClinica /></Protegido>} />
               <Route path="/presupuestos" element={<Protegido modulo="presupuestos"><Presupuestos /></Protegido>} />
+              <Route path="/periodontograma" element={<Protegido modulo="periodontograma"><Periodontograma /></Protegido>} />
+              <Route path="/imagenes" element={<Protegido modulo="imagenes"><ImagenesPaciente /></Protegido>} />
+              <Route path="/recetas" element={<Protegido modulo="recetas"><Recetas /></Protegido>} />
               <Route path="/servicios" element={<Protegido modulo="servicios"><Servicios /></Protegido>} />
               <Route path="/articulos" element={<Protegido modulo="articulos"><Articulos /></Protegido>} />
               <Route path="/mobiliario" element={<Protegido modulo="mobiliario"><Mobiliario /></Protegido>} />

@@ -387,3 +387,58 @@ export interface Presupuesto {
 export interface PresupuestoConItems extends Presupuesto {
   items: PresupuestoItem[]
 }
+
+// ===== PERIODONTOGRAMA / IMÁGENES / RECETAS (acercamiento a Dentalink) =====
+
+// Un registro periodontal de una pieza en una fecha de examen.
+export interface MarcaPeriodontal {
+  id: string
+  cliente_id: string
+  fecha: string
+  diente: number
+  ps_vm: number | null; ps_vc: number | null; ps_vd: number | null   // sondaje vestibular
+  ps_lm: number | null; ps_lc: number | null; ps_ld: number | null   // sondaje lingual/palatino
+  rec_v: number | null; rec_l: number | null                          // recesión
+  movilidad: number | null
+  furca: number | null
+  sangrado: boolean
+  placa: boolean
+  notas: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ImagenPaciente {
+  id: string
+  cliente_id: string
+  path: string
+  tipo: 'foto' | 'radiografia' | 'documento'
+  descripcion: string | null
+  fecha: string
+  created_at: string
+}
+
+export interface RecetaItem {
+  id: string
+  receta_id: string
+  medicamento: string
+  presentacion: string | null
+  indicacion: string | null
+  cantidad: string | null
+  created_at: string
+}
+
+export interface Receta {
+  id: string
+  codigo: number
+  cliente_id: string | null
+  empleado_id: string | null
+  fecha: string
+  indicaciones: string | null
+  notas: string | null
+  created_at: string
+}
+
+export interface RecetaConItems extends Receta {
+  items: RecetaItem[]
+}
