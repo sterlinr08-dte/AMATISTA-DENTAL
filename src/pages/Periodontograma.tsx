@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Trash2, Save, Ruler, User } from 'lucide-react'
+import { Trash2, Save, Ruler, User, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Cliente, MarcaPeriodontal } from '../types'
 import { codigoCliente, hoyISO } from '../lib/format'
 import { ARCADA_PERMANENTE_SUP, ARCADA_PERMANENTE_INF } from '../lib/dental'
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
-import Modal from '../components/Modal'
 import DienteSVG from '../components/DienteSVG'
 
 // Los campos numéricos se editan como texto para permitir el valor vacío (null).
@@ -451,22 +450,51 @@ export default function Periodontograma() {
         </div>
       )}
 
-      <Modal
-        open={open}
-        title={dienteSel != null ? `Diente ${dienteSel} — periodontal` : 'Diente'}
-        onClose={() => setOpen(false)}
-        footer={
-          <>
-            <button className="btn-ghost" onClick={() => setOpen(false)}>
-              Cancelar
-            </button>
-            <button className="btn-primary" onClick={guardar} disabled={saving}>
-              <Save size={16} /> {saving ? 'Guardando…' : 'Guardar'}
-            </button>
-          </>
-        }
+      {/* Panel lateral deslizante (en vez de ventana flotante) */}
+      {open && (
+        <div className="fixed inset-0 z-30 bg-slate-900/20 lg:hidden" onClick={() => setOpen(false)} />
+      )}
+      <aside
+        className={`fixed inset-y-0 right-0 z-40 flex w-full max-w-sm transform flex-col border-l border-amber-100 bg-white shadow-[-12px_0_40px_-16px_rgba(201,162,39,0.35)] transition-transform duration-300 ${
+          open ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        aria-hidden={!open}
       >
-        <div className="space-y-4">
+        {dienteSel != null && (
+          <>
+            <header className="flex items-center justify-between border-b border-amber-100 px-5 py-4">
+              <div>
+                <h3 className="text-base font-semibold text-amber-800">Diente {dienteSel}</h3>
+                <p className="text-xs text-slate-500">Registro periodontal</p>
+              </div>
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-amber-50 hover:text-amber-700"
+                aria-label="Cerrar"
+              >
+                <X size={20} />
+              </button>
+            </header>
+
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              {/* Vista previa del diente elegido (tinte según la peor bolsa en el formulario) */}
+              {(() => {
+                const arribaSel = ARCADA_PERMANENTE_SUP.includes(dienteSel)
+                const psForm = [form.ps_vm, form.ps_vc, form.ps_vd, form.ps_lm, form.ps_lc, form.ps_ld]
+                  .map((v) => strAnum(v))
+                  .filter((x): x is number => x != null)
+                const maxForm = psForm.length ? Math.max(...psForm) : null
+                const tinte = maxForm == null ? undefined : maxForm >= 6 ? '#ef4444' : maxForm >= 4 ? '#f59e0b' : '#34d399'
+                return (
+                  <div className="flex flex-col items-center rounded-2xl border border-amber-100 bg-amber-50/40 py-4">
+                    <DienteSVG fdi={dienteSel} arriba={arribaSel} colorPieza={tinte} size={74} />
+                    {maxForm != null && (
+                      <p className="mt-2 text-sm font-semibold text-slate-700">Sondaje máx: {maxForm} mm</p>
+                    )}
+                  </div>
+                )
+              })()}
+
           <div>
             <label className="label">Profundidad de sondaje · Vestibular (mm)</label>
             <div className="grid grid-cols-3 gap-2">
@@ -625,8 +653,19 @@ export default function Periodontograma() {
               placeholder="Observaciones periodontales…"
             />
           </div>
-        </div>
-      </Modal>
+            </div>
+
+            <footer className="flex justify-end gap-2 border-t border-amber-100 px-5 py-3">
+              <button className="btn-ghost" onClick={() => setOpen(false)}>
+                Cancelar
+              </button>
+              <button className="btn-primary" onClick={guardar} disabled={saving}>
+                <Save size={16} /> {saving ? 'Guardando…' : 'Guardar'}
+              </button>
+            </footer>
+          </>
+        )}
+      </aside>
     </div>
   )
 }
