@@ -240,7 +240,7 @@ export default function Consentimientos({ pacienteFijo }: { pacienteFijo?: strin
   .linea { border-top:1px solid #374151; margin:0 auto 6px; }
   .firma-nombre { font-weight:bold; font-size:14px; }
   .firma-rol { font-size:12px; color:#6b7280; }
-  @page { size:auto; margin:14mm; }
+  @page { size: letter; margin:14mm; }
 </style></head><body>
   <div class="encabezado">
     <img src="${logoSrc}" alt="${esc(negocio.nombre)}">

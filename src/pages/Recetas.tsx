@@ -293,7 +293,7 @@ export default function Recetas({ pacienteFijo }: { pacienteFijo?: string } = {}
     margin: 0 auto 6px;
   }
   .firma .nombre { font-weight: bold; }
-  @page { size: auto; margin: 12mm; }
+  @page { size: letter; margin: 12mm; }
 </style>
 </head>
 <body>

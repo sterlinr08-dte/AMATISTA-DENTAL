@@ -519,6 +519,114 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     setVerItems((data as FacturaItem[]) ?? [])
   }
 
+  // Imprime la factura en HOJA NORMAL TAMAÑO CARTA (ventana autónoma con logo,
+  // datos de la clínica, paciente, tabla de ítems y totales). Distinta del
+  // ticket térmico de 72 mm (botón "Ticket").
+  function imprimirCarta() {
+    const f = facturaVista
+    if (!f) return
+    const w = window.open('', '_blank', 'width=850,height=1100')
+    if (!w) return alert('Permite las ventanas emergentes para imprimir.')
+    const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    const logoSrc = `${location.origin}${import.meta.env.BASE_URL}${negocio.logo}`
+    const cl = clientes.find((c) => c.id === f.cliente_id)
+    const cliente = cl ? `${codigoCliente(cl.codigo)} · ${esc(f.cliente_nombre ?? cl.nombre)}` : esc(f.cliente_nombre ?? 'Cliente de contado')
+    const filas = verItems
+      .map((it) => {
+        const emp = (it as any).empleado?.nombre ? `<div class="por">Realizado por ${esc((it as any).empleado.nombre)}</div>` : ''
+        return `<tr>
+          <td>${esc(it.descripcion)}${emp}</td>
+          <td class="c">${it.cantidad}</td>
+          <td class="r">${money(Number(it.precio_unit))}</td>
+          <td class="r">${money(Number(it.importe))}</td>
+        </tr>`
+      })
+      .join('')
+    const devuelto = devueltoPorFactura[f.id] ?? 0
+    w.document.write(`<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>${esc(codigoFactura(f))} — Factura</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color:#1f2937; margin:0; padding:40px 48px; font-size:13px; }
+  .enc { display:flex; align-items:center; gap:18px; border-bottom:3px solid #c9a227; padding-bottom:16px; margin-bottom:18px; }
+  .enc img { height:74px; width:auto; object-fit:contain; }
+  .clinica { font-size:22px; font-weight:bold; color:#111827; margin:0; }
+  .datos { font-size:11px; color:#4b5563; margin-top:3px; line-height:1.4; }
+  .fact-tit { text-align:right; margin-left:auto; }
+  .fact-tit .lbl { font-size:20px; font-weight:bold; color:#c9a227; letter-spacing:1px; }
+  .fact-tit .num { font-size:14px; font-weight:bold; color:#374151; }
+  .meta { display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px 24px; margin-bottom:14px; }
+  .meta div { font-size:12.5px; }
+  .meta .k { font-weight:bold; color:#374151; }
+  table { width:100%; border-collapse:collapse; margin-top:6px; }
+  thead th { background:#faf3df; border-bottom:2px solid #c9a227; text-align:left; padding:8px 10px; font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:#6b5a17; }
+  thead th.c { text-align:center; } thead th.r { text-align:right; }
+  tbody td { border-bottom:1px solid #eee; padding:8px 10px; vertical-align:top; }
+  tbody td.c { text-align:center; } tbody td.r { text-align:right; white-space:nowrap; }
+  .por { font-size:11px; color:#6b7280; margin-top:2px; }
+  .tot { margin-top:14px; margin-left:auto; width:280px; }
+  .tot .fila { display:flex; justify-content:space-between; padding:3px 0; font-size:13px; color:#4b5563; }
+  .tot .total { border-top:2px solid #c9a227; margin-top:4px; padding-top:6px; font-size:16px; font-weight:bold; color:#111827; }
+  .tot .devuelto { color:#dc2626; font-weight:600; }
+  .pie { margin-top:40px; border-top:1px solid #e5e7eb; padding-top:12px; text-align:center; font-size:11px; color:#6b7280; }
+  @page { size: letter; margin: 16mm; }
+</style></head><body>
+  <div class="enc">
+    <img src="${logoSrc}" alt="${esc(negocio.nombre)}">
+    <div>
+      <p class="clinica">${esc(negocio.nombre)}</p>
+      <div class="datos">
+        ${negocio.rnc ? `<div>RNC: ${esc(negocio.rnc)}</div>` : ''}
+        ${negocio.direccion ? `<div>${esc(negocio.direccion)}${negocio.referencia ? ' · ' + esc(negocio.referencia) : ''}</div>` : ''}
+        ${negocio.telefono ? `<div>Tel.: ${esc(negocio.telefono)}${negocio.whatsapp ? ' · WhatsApp: ' + esc(negocio.whatsapp) : ''}</div>` : ''}
+      </div>
+    </div>
+    <div class="fact-tit">
+      <div class="lbl">FACTURA</div>
+      <div class="num">${esc(codigoFactura(f))}</div>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div><span class="k">Cliente:</span> ${cliente}</div>
+    <div><span class="k">Fecha:</span> ${esc(fechaCorta(f.fecha))}</div>
+    <div><span class="k">Tipo:</span> ${f.tipo_venta === 'CREDITO' ? 'Crédito' : 'Contado'}</div>
+    <div><span class="k">Estado:</span> ${esc(f.estado)}</div>
+    ${f.metodo_pago ? `<div><span class="k">Pago:</span> ${esc(f.metodo_pago)}</div>` : ''}
+  </div>
+
+  <table>
+    <thead><tr>
+      <th>Descripción</th><th class="c">Cant.</th><th class="r">Precio</th><th class="r">Importe</th>
+    </tr></thead>
+    <tbody>${filas || '<tr><td colspan="4" style="text-align:center;color:#9ca3af;padding:16px;">Sin ítems</td></tr>'}</tbody>
+  </table>
+
+  <div class="tot">
+    <div class="fila"><span>Subtotal</span><span>${money(Number(f.subtotal))}</span></div>
+    ${Number(f.descuento) > 0 ? `<div class="fila"><span>Descuento</span><span>- ${money(Number(f.descuento))}</span></div>` : ''}
+    ${Number(f.itbis) > 0 ? `<div class="fila"><span>ITBIS (18%)</span><span>${money(Number(f.itbis))}</span></div>` : ''}
+    <div class="fila total"><span>Total</span><span>${money(Number(f.total))}</span></div>
+    ${devuelto > 0 ? `<div class="fila devuelto"><span>Devuelto</span><span>- ${money(devuelto)}</span></div>` : ''}
+  </div>
+
+  <div class="pie">
+    <p>¡Gracias por confiar en ${esc(negocio.nombre)}!</p>
+    ${negocio.instagram ? `<p>${esc(negocio.instagram)}</p>` : ''}
+  </div>
+  <script>
+    window.onload = function () {
+      var imgs = Array.prototype.slice.call(document.images)
+      Promise.all(imgs.map(function (img) {
+        return img.complete ? Promise.resolve() : new Promise(function (res) { img.onload = img.onerror = res })
+      })).then(function () { setTimeout(function () { window.focus(); window.print() }, 150) })
+    }
+  </script>
+</body></html>`)
+    w.document.close()
+    w.focus()
+  }
+
   // === DEVOLUCIONES ===
   async function abrirDevolucion(f: Factura) {
     const { data: items } = await supabase.from('factura_items').select('*').eq('factura_id', f.id)
@@ -1156,14 +1264,17 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
                 <div className="flex justify-between font-semibold text-rose-600"><span>Devuelto</span><span>- {money(devueltoPorFactura[facturaVista.id])}</span></div>
               )}
             </div>
-            <div className="no-print flex gap-2">
+            <div className="no-print flex flex-wrap gap-2">
               {facturaVista.estado === 'PAGADA' && puedeAnular && (
                 <button className="btn-ghost flex-1" onClick={() => abrirDevolucion(facturaVista)}>
                   <Undo2 size={16} /> Devolver
                 </button>
               )}
-              <button className="btn-primary flex-1" onClick={() => window.print()}>
-                <Printer size={16} /> Imprimir
+              <button className="btn-ghost flex-1" onClick={() => window.print()} title="Ticket térmico de 72 mm">
+                <Printer size={16} /> Ticket 72mm
+              </button>
+              <button className="btn-primary flex-1" onClick={imprimirCarta} title="Hoja tamaño carta">
+                <Printer size={16} /> Imprimir (carta)
               </button>
             </div>
           </div>
