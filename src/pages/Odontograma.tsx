@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Trash2, Save, User } from 'lucide-react'
+import { Trash2, Save, User, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Cliente, Servicio, MarcaOdontograma, EstadoDiente, CondicionMarca } from '../types'
 import { codigoCliente } from '../lib/format'
@@ -21,7 +21,6 @@ import {
 } from '../lib/dental'
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
-import Modal from '../components/Modal'
 import DienteSVG from '../components/DienteSVG'
 
 type Denticion = 'permanente' | 'temporal'
@@ -488,28 +487,66 @@ export default function Odontograma() {
         </div>
       )}
 
-      <Modal
-        open={open}
-        title={
-          objetivo
-            ? `Diente ${objetivo.diente} — ${objetivo.cara == null ? 'Pieza completa' : `Cara: ${caraLabel(objetivo.cara)}`}`
-            : 'Diente'
-        }
-        onClose={() => setOpen(false)}
-        footer={
-          <>
-            <button className="btn-ghost" onClick={() => setOpen(false)}>
-              Cancelar
-            </button>
-            <button className="btn-primary" onClick={guardar} disabled={saving}>
-              <Save size={16} /> {saving ? 'Guardando…' : 'Guardar'}
-            </button>
-          </>
-        }
+      {/* Panel lateral deslizante (en vez de ventana flotante) */}
+      {open && (
+        <div className="fixed inset-0 z-30 bg-slate-900/20 lg:hidden" onClick={() => setOpen(false)} />
+      )}
+      <aside
+        className={`fixed inset-y-0 right-0 z-40 flex w-full max-w-sm transform flex-col border-l border-amber-100 bg-white shadow-[-12px_0_40px_-16px_rgba(201,162,39,0.35)] transition-transform duration-300 ${
+          open ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        aria-hidden={!open}
       >
-        <div className="space-y-4">
-          <div>
-            <label className="label">Estado / hallazgo</label>
+        {objetivo && (
+          <>
+            <header className="flex items-center justify-between border-b border-amber-100 px-5 py-4">
+              <div>
+                <h3 className="text-base font-semibold text-amber-800">Diente {objetivo.diente}</h3>
+                <p className="text-xs text-slate-500">
+                  {objetivo.cara == null ? 'Pieza completa' : `Cara: ${caraLabel(objetivo.cara)}`}
+                </p>
+              </div>
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-amber-50 hover:text-amber-700"
+                aria-label="Cerrar"
+              >
+                <X size={20} />
+              </button>
+            </header>
+
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              {/* Vista previa del diente elegido (en vivo según el estado) */}
+              {(() => {
+                const arribaSel = arcadaSup.includes(objetivo.diente)
+                const defSel = estadoDienteDef(form.estado)
+                const conSigno = defSel.grupo !== 'sano' && defSel.grupo !== 'ausente'
+                const colorSel = colorMarca(form.estado, form.condicion || null)
+                return (
+                  <div className="flex flex-col items-center rounded-2xl border border-amber-100 bg-amber-50/40 py-4">
+                    <DienteSVG
+                      fdi={objetivo.diente}
+                      arriba={arribaSel}
+                      colorPieza={colorSel}
+                      estado={form.estado}
+                      sigla={conSigno ? defSel.sigla : undefined}
+                      size={74}
+                    />
+                    <p className="mt-2 text-sm font-semibold text-slate-700">{defSel.label}</p>
+                    {conSigno && (
+                      <span
+                        className="mt-1 rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
+                        style={{ backgroundColor: colorSel }}
+                      >
+                        {condicionLabel(form.condicion || condicionPorDefecto(form.estado))}
+                      </span>
+                    )}
+                  </div>
+                )
+              })()}
+
+              <div>
+                <label className="label">Estado / hallazgo</label>
             <select
               className="input"
               value={form.estado}
@@ -605,8 +642,19 @@ export default function Odontograma() {
               placeholder="Observaciones clínicas…"
             />
           </div>
-        </div>
-      </Modal>
+            </div>
+
+            <footer className="flex justify-end gap-2 border-t border-amber-100 px-5 py-3">
+              <button className="btn-ghost" onClick={() => setOpen(false)}>
+                Cancelar
+              </button>
+              <button className="btn-primary" onClick={guardar} disabled={saving}>
+                <Save size={16} /> {saving ? 'Guardando…' : 'Guardar'}
+              </button>
+            </footer>
+          </>
+        )}
+      </aside>
     </div>
   )
 }
