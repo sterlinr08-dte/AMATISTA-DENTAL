@@ -21,6 +21,7 @@ function tipoPorFdi(fdi: number): TipoDiente {
 // y la raíz ABAJO; se voltea en Y según la arcada (ver más abajo).
 const FOTOS: Partial<Record<TipoDiente, string>> = {
   incisivo: `${import.meta.env.BASE_URL}dientes/incisivo.png`,
+  canino: `${import.meta.env.BASE_URL}dientes/canino.png`,
   molar: `${import.meta.env.BASE_URL}dientes/molar.png`,
 }
 
