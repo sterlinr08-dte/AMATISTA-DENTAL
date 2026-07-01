@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import { Save, Trash2, Plus, FileText, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Cliente, Empleado, HistoriaClinica as Ficha, HistoriaEvolucion } from '../types'
-import { fechaCorta, hoyISO, codigoCliente } from '../lib/format'
+import { fechaCorta, hoyISO } from '../lib/format'
 import { GRUPOS_SANGUINEOS } from '../lib/dental'
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
 import Modal from '../components/Modal'
 import DataTable, { Columna } from '../components/DataTable'
+import SelectorPaciente from '../components/SelectorPaciente'
 
 const fichaVacia = {
   antecedentes: '',
@@ -195,14 +196,7 @@ export default function HistoriaClinica() {
 
       <div className="card mb-6 max-w-md">
         <label className="label">Paciente</label>
-        <select className="input" value={pacienteId} onChange={(e) => setPacienteId(e.target.value)}>
-          <option value="">Selecciona un paciente…</option>
-          {clientes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {codigoCliente(c.codigo)} — {c.nombre}
-            </option>
-          ))}
-        </select>
+        <SelectorPaciente clientes={clientes} value={pacienteId} onChange={setPacienteId} />
       </div>
 
       {!pacienteId ? (

@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { Upload, Trash2, Image as ImageIcon, FileText, ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Cliente, ImagenPaciente } from '../types'
-import { fechaCorta, hoyISO, codigoCliente } from '../lib/format'
+import { fechaCorta, hoyISO } from '../lib/format'
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
+import SelectorPaciente from '../components/SelectorPaciente'
 
 const BUCKET = 'pacientes'
 
@@ -149,14 +150,7 @@ export default function ImagenesPaciente() {
 
       <div className="card mb-6 max-w-md">
         <label className="label">Paciente</label>
-        <select className="input" value={pacienteId} onChange={(e) => setPacienteId(e.target.value)}>
-          <option value="">Selecciona un paciente…</option>
-          {clientes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {codigoCliente(c.codigo)} — {c.nombre}
-            </option>
-          ))}
-        </select>
+        <SelectorPaciente clientes={clientes} value={pacienteId} onChange={setPacienteId} />
       </div>
 
       {!pacienteId ? (

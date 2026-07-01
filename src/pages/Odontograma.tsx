@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Trash2, Save, User, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Cliente, Servicio, MarcaOdontograma, EstadoDiente, CondicionMarca } from '../types'
-import { codigoCliente } from '../lib/format'
 import {
   ARCADA_PERMANENTE_SUP,
   ARCADA_PERMANENTE_INF,
@@ -22,6 +21,7 @@ import {
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
 import DienteSVG from '../components/DienteSVG'
+import SelectorPaciente from '../components/SelectorPaciente'
 
 type Denticion = 'permanente' | 'temporal'
 
@@ -296,14 +296,7 @@ export default function Odontograma() {
 
       <div className="mb-6 max-w-md">
         <label className="label">Paciente</label>
-        <select className="input" value={pacienteId} onChange={(e) => setPacienteId(e.target.value)}>
-          <option value="">Selecciona un paciente…</option>
-          {clientes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {codigoCliente(c.codigo)} — {c.nombre}
-            </option>
-          ))}
-        </select>
+        <SelectorPaciente clientes={clientes} value={pacienteId} onChange={setPacienteId} />
       </div>
 
       {!paciente ? (

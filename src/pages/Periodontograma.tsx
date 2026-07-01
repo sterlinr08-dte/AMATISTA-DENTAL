@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { Trash2, Save, Ruler, User, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Cliente, MarcaPeriodontal } from '../types'
-import { codigoCliente, hoyISO } from '../lib/format'
+import { hoyISO } from '../lib/format'
 import { ARCADA_PERMANENTE_SUP, ARCADA_PERMANENTE_INF } from '../lib/dental'
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
 import DienteSVG from '../components/DienteSVG'
+import SelectorPaciente from '../components/SelectorPaciente'
 
 // Los campos numéricos se editan como texto para permitir el valor vacío (null).
 type CampoNum =
@@ -313,14 +314,7 @@ export default function Periodontograma() {
       <div className="mb-6 flex flex-wrap gap-4">
         <div className="min-w-[16rem] flex-1">
           <label className="label">Paciente</label>
-          <select className="input" value={pacienteId} onChange={(e) => setPacienteId(e.target.value)}>
-            <option value="">Selecciona un paciente…</option>
-            {clientes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {codigoCliente(c.codigo)} — {c.nombre}
-              </option>
-            ))}
-          </select>
+          <SelectorPaciente clientes={clientes} value={pacienteId} onChange={setPacienteId} />
         </div>
         <div className="w-56">
           <label className="label">Fecha del examen</label>
