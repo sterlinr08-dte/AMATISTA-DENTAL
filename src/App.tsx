@@ -81,15 +81,16 @@ export default function App() {
       <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-amber-100 bg-white px-4 py-2.5 lg:hidden">
-          <button onClick={() => setMenuOpen(true)} className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50" aria-label="Abrir menú">
+        <header className="flex items-center gap-3 bg-gradient-to-r from-[#d9b64a] via-[#c9a227] to-[#b08d1c] px-4 py-2.5 shadow-md">
+          <button onClick={() => setMenuOpen(true)} className="rounded-lg p-1.5 text-white hover:bg-white/20 lg:hidden" aria-label="Abrir menú">
             <Menu size={24} />
           </button>
           <img
             src={`${import.meta.env.BASE_URL}amatista-logo.png`}
             alt="Amatista Dental"
-            className="h-10 w-10 rounded-lg bg-white object-contain p-0.5 ring-1 ring-pink-500/20"
+            className="h-9 w-9 rounded-lg bg-white object-contain p-0.5 shadow ring-1 ring-white/50"
           />
+          <span className="text-lg font-semibold tracking-wide text-white">Amatista Dental</span>
         </header>
 
         <main className="flex-1 overflow-y-auto">

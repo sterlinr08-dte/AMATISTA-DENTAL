@@ -90,17 +90,17 @@ export default function Sidebar({ open, onClose }: Props) {
       {open && <div className="fixed inset-0 z-30 bg-slate-900/50 lg:hidden" onClick={onClose} />}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r border-amber-100 bg-white text-slate-700 shadow-[8px_0_30px_-12px_rgba(201,162,39,0.15)] transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r border-[#a8841a] bg-gradient-to-b from-[#d9b64a] via-[#c9a227] to-[#b08d1c] text-amber-50 shadow-[8px_0_30px_-12px_rgba(176,141,28,0.5)] transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="relative border-b border-amber-100 px-5 py-5">
+        <div className="relative border-b border-white/25 px-5 py-5">
           <img
             src={`${import.meta.env.BASE_URL}amatista-logo.png`}
             alt="Amatista Dental"
-            className="logo-glow mx-auto aspect-square w-24 rounded-2xl bg-white object-contain p-2.5 ring-1 ring-amber-200"
+            className="mx-auto aspect-square w-24 rounded-2xl bg-white object-contain p-2.5 shadow-md ring-1 ring-white/60"
           />
-          <button onClick={onClose} className="absolute right-3 top-3 rounded-lg p-1 text-slate-500 hover:bg-amber-50 lg:hidden">
+          <button onClick={onClose} className="absolute right-3 top-3 rounded-lg p-1 text-white/90 hover:bg-white/20 lg:hidden">
             <X size={22} />
           </button>
         </div>
@@ -108,7 +108,7 @@ export default function Sidebar({ open, onClose }: Props) {
         <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-2">
           {visibles.map((g) => (
             <div key={g.titulo}>
-              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600">{g.titulo}</p>
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/70">{g.titulo}</p>
               <div className="space-y-1">
                 {g.links.map(({ to, label, icon: Icon, end }) => (
                   <NavLink
@@ -119,14 +119,14 @@ export default function Sidebar({ open, onClose }: Props) {
                     className={({ isActive }) =>
                       `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-150 ${
                         isActive
-                          ? 'bg-gradient-to-r from-amber-100 to-amber-50 text-amber-900 ring-1 ring-amber-300/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_6px_14px_-6px_rgba(201,162,39,0.45)]'
-                          : 'text-slate-600 hover:bg-amber-50/70 hover:text-amber-800 hover:translate-x-0.5'
+                          ? 'bg-white text-amber-800 shadow-[0_6px_14px_-6px_rgba(0,0,0,0.4)]'
+                          : 'text-amber-50 hover:bg-white/15 hover:text-white hover:translate-x-0.5'
                       }`
                     }
                   >
                     {({ isActive }) => (
                       <>
-                        <Icon size={18} className={isActive ? 'text-amber-600' : 'text-amber-500/80 group-hover:text-amber-600'} />
+                        <Icon size={18} className={isActive ? 'text-amber-600' : 'text-amber-50/90 group-hover:text-white'} />
                         {label}
                       </>
                     )}
@@ -137,16 +137,16 @@ export default function Sidebar({ open, onClose }: Props) {
           ))}
         </nav>
 
-        <div className="space-y-2 border-t border-amber-100 px-3 py-4">
+        <div className="space-y-2 border-t border-white/25 px-3 py-4">
           {perfil?.rol_nombre && (
-            <p className="px-3 text-xs font-semibold text-amber-700">{perfil.rol_nombre}</p>
+            <p className="px-3 text-xs font-semibold text-white">{perfil.rol_nombre}</p>
           )}
           {(perfil?.username || perfil?.nombre) && (
-            <p className="truncate px-3 text-xs text-slate-500">{perfil?.nombre || perfil?.username}{perfil?.username ? ` · ${perfil.username}` : ''}</p>
+            <p className="truncate px-3 text-xs text-amber-50/80">{perfil?.nombre || perfil?.username}{perfil?.username ? ` · ${perfil.username}` : ''}</p>
           )}
           <button
             onClick={signOut}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-amber-50 hover:text-slate-900"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-50 transition hover:bg-white/15 hover:text-white"
           >
             <LogOut size={18} />
             Cerrar sesión
