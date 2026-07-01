@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 // Diente anatómico y realista en SVG (efecto 3D con sombreado), estilo Dentalink.
 // Se dibuja según el tipo de pieza (por el último dígito FDI) y se orienta la
 // raíz según la arcada (`arriba`): superior => raíz hacia arriba y corona abajo;
@@ -11,6 +13,14 @@ function tipoPorFdi(fdi: number): TipoDiente {
   if (d === 3) return 'canino'
   if (d === 4 || d === 5) return 'premolar'
   return 'molar'
+}
+
+// Fotos 3D hiperrealistas (fondo transparente) por tipo de pieza. Si existe una
+// foto para el tipo, se usa en lugar del dibujo SVG. Se irán añadiendo el resto
+// de tipos a medida que se generen. La imagen está dibujada con la corona ARRIBA
+// y la raíz ABAJO; se voltea en Y según la arcada (ver más abajo).
+const FOTOS: Partial<Record<TipoDiente, string>> = {
+  molar: `${import.meta.env.BASE_URL}dientes/molar.png`,
 }
 
 interface DienteSVGProps {
@@ -84,6 +94,21 @@ function formaPorTipo(tipo: TipoDiente): FormaDiente {
 
 export default function DienteSVG({ fdi, arriba, colorPieza, estado, size = 40 }: DienteSVGProps) {
   const tipo = tipoPorFdi(fdi)
+
+  // Si hay foto hiperrealista para este tipo de pieza, se renderiza la foto.
+  const foto = FOTOS[tipo]
+  if (foto) {
+    return (
+      <DienteFoto
+        src={foto}
+        arriba={arriba}
+        colorPieza={colorPieza}
+        estado={estado}
+        size={size}
+      />
+    )
+  }
+
   const { corona, raices } = formaPorTipo(tipo)
 
   // IDs únicos por instancia para que los gradientes no colisionen al repetir.
@@ -196,5 +221,94 @@ export default function DienteSVG({ fdi, arriba, colorPieza, estado, size = 40 }
         </g>
       )}
     </svg>
+  )
+}
+
+// Render con foto 3D real (PNG con fondo transparente). La corona de la imagen
+// está arriba; para la arcada superior se voltea en Y (corona hacia el centro).
+// El estado (color) tiñe SOLO la silueta del diente usando la imagen como máscara.
+function DienteFoto({
+  src,
+  arriba,
+  colorPieza,
+  estado,
+  size,
+}: {
+  src: string
+  arriba: boolean
+  colorPieza?: string
+  estado?: string
+  size: number
+}) {
+  const ausente = estado === 'ausente'
+  const implante = estado === 'implante'
+  // Superior: corona hacia abajo (voltear); inferior: corona hacia arriba (natural).
+  const flip = arriba ? 'scaleY(-1)' : undefined
+  const w = size
+  const h = size * 1.3
+
+  const mask: CSSProperties = {
+    WebkitMaskImage: `url(${src})`,
+    maskImage: `url(${src})`,
+    WebkitMaskSize: 'contain',
+    maskSize: 'contain',
+    WebkitMaskRepeat: 'no-repeat',
+    maskRepeat: 'no-repeat',
+    WebkitMaskPosition: 'center',
+    maskPosition: 'center',
+  }
+
+  return (
+    <div className="relative" style={{ width: w, height: h }} aria-hidden="true">
+      <img
+        src={src}
+        alt=""
+        draggable={false}
+        className="h-full w-full object-contain drop-shadow-sm"
+        style={{ transform: flip }}
+      />
+
+      {/* Tinte de estado sobre la silueta del diente (multiplica el color). */}
+      {colorPieza && (
+        <span
+          className="pointer-events-none absolute inset-0"
+          style={{
+            ...mask,
+            backgroundColor: colorPieza,
+            opacity: 0.5,
+            mixBlendMode: 'multiply',
+            transform: flip,
+          }}
+        />
+      )}
+
+      {/* Ausente: X roja. */}
+      {ausente && (
+        <svg viewBox="0 0 40 52" className="absolute inset-0 h-full w-full">
+          <g stroke="#dc2626" strokeWidth={3.4} strokeLinecap="round" opacity={0.9}>
+            <line x1="9" y1="9" x2="31" y2="43" />
+            <line x1="31" y1="9" x2="9" y2="43" />
+          </g>
+        </svg>
+      )}
+
+      {/* Implante: tornillo gris sobre la raíz. */}
+      {implante && (
+        <svg viewBox="0 0 40 52" className="absolute inset-0 h-full w-full">
+          <g
+            transform={flip ? 'translate(0,52) scale(1,-1)' : undefined}
+            stroke="#64748b"
+            strokeWidth={1.6}
+            strokeLinecap="round"
+            fill="none"
+          >
+            <line x1="20" y1="34" x2="20" y2="50" />
+            <line x1="15" y1="37" x2="25" y2="39" />
+            <line x1="15" y1="41" x2="25" y2="43" />
+            <line x1="16" y1="45" x2="24" y2="47" />
+          </g>
+        </svg>
+      )}
+    </div>
   )
 }
