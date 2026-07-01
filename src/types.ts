@@ -113,6 +113,11 @@ export interface Factura {
   notas: string | null
   created_at: string
   updated_at: string
+  // Comprobante fiscal DGII
+  ncf: string | null
+  tipo_comprobante: string | null
+  comprador_rnc: string | null
+  comprador_razon_social: string | null
 }
 
 export interface FacturaConItems extends Factura {
@@ -141,6 +146,10 @@ export interface Devolucion {
   caja_id: string | null
   registrado_por: string | null
   created_at: string
+  // Nota de crédito fiscal DGII
+  ncf: string | null
+  tipo_comprobante: string | null
+  ncf_afectado: string | null
 }
 
 export interface DevolucionItem {
@@ -244,6 +253,22 @@ export interface PagoEmpleado {
   comision_desde: string | null
   comision_hasta: string | null
   created_at: string
+}
+
+// Secuencia de comprobante fiscal (NCF tradicional o e-CF), autorizada por la DGII.
+export interface SecuenciaNcf {
+  id: string
+  tipo: string            // B01,B02,B04,E31,E32,E34
+  descripcion: string
+  electronico: boolean
+  prefijo: string
+  secuencia_desde: number | null
+  secuencia_hasta: number | null
+  secuencia_actual: number | null
+  vencimiento: string | null
+  activo: boolean
+  created_at: string
+  updated_at: string
 }
 
 // Tipado mínimo para el cliente de Supabase.

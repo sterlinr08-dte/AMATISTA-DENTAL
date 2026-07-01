@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Plus, Pencil, Trash2, UserPlus, ShieldCheck, Users as UsersIcon, Store, Tags, Truck, ScrollText, Percent, Hash, Printer, Download } from 'lucide-react'
+import { Plus, Pencil, Trash2, UserPlus, ShieldCheck, Users as UsersIcon, Store, Tags, Truck, ScrollText, Percent, Hash, Printer, Download, ReceiptText } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { MODULOS, ACCIONES, etiquetaPermiso, Rol } from '../lib/permisos'
-import { Empleado, Proveedor, Auditoria } from '../types'
+import { Empleado, Proveedor, Auditoria, SecuenciaNcf } from '../types'
 import { fechaHora, conPrefijo } from '../lib/format'
 import { PREFIJOS_DEFAULT } from '../lib/constants'
 import { imprimirHTML } from '../lib/impresora'
@@ -36,7 +36,7 @@ export default function Configuracion() {
   const { perfil, recargarPerfil } = useAuth()
   const { negocio, recargarNegocio } = useNegocio()
   const [params] = useSearchParams()
-  const [tab, setTab] = useState<'usuarios' | 'roles' | 'proveedores' | 'negocio' | 'prefijos' | 'impresora' | 'categorias' | 'comisiones' | 'auditoria'>(params.get('tab') === 'impresora' ? 'impresora' : 'usuarios')
+  const [tab, setTab] = useState<'usuarios' | 'roles' | 'proveedores' | 'negocio' | 'prefijos' | 'impresora' | 'comprobantes' | 'categorias' | 'comisiones' | 'auditoria'>(params.get('tab') === 'impresora' ? 'impresora' : params.get('tab') === 'comprobantes' ? 'comprobantes' : 'usuarios')
   const [pruebaOpen, setPruebaOpen] = useState(false)
   const [qzMsg, setQzMsg] = useState<{ ok: boolean; texto: string } | null>(null)
   const [qzProbando, setQzProbando] = useState(false)
@@ -75,8 +75,15 @@ export default function Configuracion() {
   const pagProv = usePaginacion(proveedores, 10)
 
   // datos del negocio
-  const [formNeg, setFormNeg] = useState({ nombre: '', direccion: '', referencia: '', telefono: '', whatsapp: '', instagram: '', rnc: '', ancho_ticket: 58, auto_imprimir: true, ...PREFIJOS_DEFAULT })
+  const [formNeg, setFormNeg] = useState({ nombre: '', direccion: '', referencia: '', telefono: '', whatsapp: '', instagram: '', rnc: '', razon_social: '', comprobantes_activos: false, modo_comprobante: 'tradicional' as 'tradicional' | 'electronico', ancho_ticket: 58, auto_imprimir: true, ...PREFIJOS_DEFAULT })
   const [savingNeg, setSavingNeg] = useState(false)
+
+  // comprobantes fiscales (secuencias NCF / e-CF)
+  const [secuencias, setSecuencias] = useState<SecuenciaNcf[]>([])
+  const [openS, setOpenS] = useState(false)
+  const [editS, setEditS] = useState<SecuenciaNcf | null>(null)
+  const [formS, setFormS] = useState({ prefijo: '', secuencia_desde: '', secuencia_hasta: '', secuencia_actual: '', vencimiento: '', activo: false })
+  const [savingS, setSavingS] = useState(false)
 
   // categorías
   const [categorias, setCategorias] = useState<{ id: string; nombre: string; tipo: string }[]>([])
@@ -121,6 +128,9 @@ export default function Configuracion() {
     if (neg) setFormNeg({
       nombre: neg.nombre ?? '', direccion: neg.direccion ?? '', referencia: neg.referencia ?? '',
       telefono: neg.telefono ?? '', whatsapp: neg.whatsapp ?? '', instagram: neg.instagram ?? '', rnc: neg.rnc ?? '',
+      razon_social: neg.razon_social ?? '',
+      comprobantes_activos: neg.comprobantes_activos ?? false,
+      modo_comprobante: (neg.modo_comprobante === 'electronico' ? 'electronico' : 'tradicional'),
       ancho_ticket: Number(neg.ancho_ticket ?? 58),
       auto_imprimir: neg.auto_imprimir ?? true,
       prefijo_caja: neg.prefijo_caja ?? PREFIJOS_DEFAULT.prefijo_caja,
@@ -137,6 +147,8 @@ export default function Configuracion() {
     setCategorias((cats as any) ?? [])
     const { data: prov } = await supabase.from('proveedores').select('*').order('nombre')
     setProveedores((prov as any) ?? [])
+    const { data: secs } = await supabase.from('secuencias_ncf').select('*').order('electronico').order('tipo')
+    setSecuencias((secs as any) ?? [])
     const { data: aud } = await supabase.from('auditoria').select('id,fecha,usuario,modulo,accion,descripcion,registro_id').order('fecha', { ascending: false }).limit(1000)
     setAuditoria((aud as any) ?? [])
     setLoading(false)
@@ -237,6 +249,47 @@ export default function Configuracion() {
     if (error) return alert('Error: ' + error.message)
     await recargarNegocio()
     alert('Datos del negocio actualizados ✓')
+  }
+
+  // ---------- COMPROBANTES (secuencias NCF / e-CF) ----------
+  function editarSecuencia(s: SecuenciaNcf) {
+    setEditS(s)
+    setFormS({
+      prefijo: s.prefijo ?? s.tipo,
+      secuencia_desde: s.secuencia_desde == null ? '' : String(s.secuencia_desde),
+      secuencia_hasta: s.secuencia_hasta == null ? '' : String(s.secuencia_hasta),
+      secuencia_actual: s.secuencia_actual == null ? '' : String(s.secuencia_actual),
+      vencimiento: s.vencimiento ?? '',
+      activo: s.activo,
+    })
+    setOpenS(true)
+  }
+
+  async function guardarSecuencia() {
+    if (!editS) return
+    const desde = formS.secuencia_desde.trim() === '' ? null : Number(formS.secuencia_desde)
+    const hasta = formS.secuencia_hasta.trim() === '' ? null : Number(formS.secuencia_hasta)
+    const actual = formS.secuencia_actual.trim() === '' ? (desde ?? null) : Number(formS.secuencia_actual)
+    if (formS.activo) {
+      if (!formS.prefijo.trim()) return alert('El prefijo es obligatorio (ej. B02 o E32).')
+      if (desde == null || hasta == null) return alert('Indica el rango autorizado (desde y hasta).')
+      if (desde < 1 || hasta < desde) return alert('El rango no es válido: "hasta" debe ser mayor o igual que "desde".')
+      if (actual == null || actual < desde || actual > hasta) return alert('El "próximo" debe estar dentro del rango autorizado.')
+    }
+    setSavingS(true)
+    const { error } = await supabase.from('secuencias_ncf').update({
+      prefijo: formS.prefijo.trim() || editS.tipo,
+      secuencia_desde: desde,
+      secuencia_hasta: hasta,
+      secuencia_actual: actual,
+      vencimiento: formS.vencimiento || null,
+      activo: formS.activo,
+      updated_at: new Date().toISOString(),
+    }).eq('id', editS.id)
+    setSavingS(false)
+    if (error) return alert('Error al guardar la secuencia: ' + error.message)
+    setOpenS(false)
+    cargar()
   }
 
   useEffect(() => {
@@ -351,6 +404,9 @@ export default function Configuracion() {
         </button>
         <button onClick={() => setTab('impresora')} className={tab === 'impresora' ? 'btn-primary' : 'btn-ghost'}>
           <Printer size={16} /> Impresora
+        </button>
+        <button onClick={() => setTab('comprobantes')} className={tab === 'comprobantes' ? 'btn-primary' : 'btn-ghost'}>
+          <ReceiptText size={16} /> Comprobantes DGII
         </button>
         <button onClick={() => setTab('categorias')} className={tab === 'categorias' ? 'btn-primary' : 'btn-ghost'}>
           <Tags size={16} /> Categorías
@@ -635,6 +691,98 @@ export default function Configuracion() {
             </p>
           </div>
         </div>
+      ) : tab === 'comprobantes' ? (
+        <div className="max-w-4xl space-y-4">
+          {/* Ajustes generales */}
+          <div className="card space-y-4">
+            <div className="flex items-center gap-2">
+              <ReceiptText className="text-brand-500" size={20} />
+              <h3 className="font-display text-lg font-bold text-slate-800">Comprobantes fiscales (DGII)</h3>
+            </div>
+            <p className="text-sm text-slate-600">
+              Configura los comprobantes fiscales. Mientras esté <b>desactivado</b>, las facturas salen normales (sin NCF).
+              Cuando la DGII te autorice, carga los rangos abajo, activa el tipo y enciende el interruptor.
+            </p>
+
+            <label className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+              <input type="checkbox" className="h-4 w-4" checked={formNeg.comprobantes_activos} onChange={(e) => setFormNeg({ ...formNeg, comprobantes_activos: e.target.checked })} />
+              <span className="text-sm font-semibold text-slate-800">Emitir comprobantes fiscales (asignar NCF a las facturas)</span>
+            </label>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="label">Modo de comprobante</label>
+                <select className="input" value={formNeg.modo_comprobante} onChange={(e) => setFormNeg({ ...formNeg, modo_comprobante: e.target.value as 'tradicional' | 'electronico' })}>
+                  <option value="tradicional">NCF tradicional (B01, B02, B04)</option>
+                  <option value="electronico">e-CF electrónico (E31, E32, E34)</option>
+                </select>
+                <p className="mt-1 text-xs text-slate-500">Determina qué comprobante se usa al facturar. Cambia a e-CF cuando la DGII te autorice como emisor electrónico.</p>
+              </div>
+              <div>
+                <label className="label">RNC de la clínica</label>
+                <input className="input" value={formNeg.rnc} onChange={(e) => setFormNeg({ ...formNeg, rnc: e.target.value })} placeholder="1-31-XXXXX-X" />
+              </div>
+            </div>
+            <div>
+              <label className="label">Razón social (nombre fiscal)</label>
+              <input className="input" value={formNeg.razon_social} onChange={(e) => setFormNeg({ ...formNeg, razon_social: e.target.value })} placeholder="Ej. Amatista Dental Center SRL" />
+            </div>
+            <div className="flex justify-end">
+              <button className="btn-primary" onClick={guardarNegocio} disabled={savingNeg}>{savingNeg ? 'Guardando…' : 'Guardar ajustes'}</button>
+            </div>
+          </div>
+
+          {/* Secuencias */}
+          <div className="card">
+            <h3 className="mb-1 font-display text-lg font-bold text-slate-800">Secuencias autorizadas</h3>
+            <p className="mb-3 text-sm text-slate-600">
+              Carga aquí los rangos que la DGII te autorice para cada tipo. Solo se usan los que estén <b>activos</b> y en el modo elegido arriba.
+            </p>
+            <div className="overflow-x-auto panel-3d">
+              <table className="min-w-full divide-y divide-slate-100 text-sm">
+                <thead className="thead-3d">
+                  <tr>
+                    <th className="px-4 py-3">Tipo</th>
+                    <th className="px-4 py-3">Comprobante</th>
+                    <th className="px-4 py-3">Prefijo</th>
+                    <th className="px-4 py-3 text-right">Rango</th>
+                    <th className="px-4 py-3 text-right">Próximo</th>
+                    <th className="px-4 py-3 text-right">Disponibles</th>
+                    <th className="px-4 py-3">Vence</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {secuencias.map((s) => {
+                    const disp = s.secuencia_actual != null && s.secuencia_hasta != null ? Math.max(0, s.secuencia_hasta - s.secuencia_actual + 1) : null
+                    const vencida = s.vencimiento ? new Date(s.vencimiento) < new Date(new Date().toDateString()) : false
+                    return (
+                      <tr key={s.id}>
+                        <td className="px-4 py-3"><span className="font-mono font-semibold text-brand-700">{s.tipo}</span></td>
+                        <td className="px-4 py-3 text-slate-700">{s.descripcion}{s.electronico && <span className="ml-1 badge bg-blue-50 text-blue-700">e-CF</span>}</td>
+                        <td className="px-4 py-3 font-mono text-slate-600">{s.prefijo}</td>
+                        <td className="px-4 py-3 text-right font-mono text-slate-600">{s.secuencia_desde != null && s.secuencia_hasta != null ? `${s.secuencia_desde} – ${s.secuencia_hasta}` : '—'}</td>
+                        <td className="px-4 py-3 text-right font-mono text-slate-600">{s.secuencia_actual ?? '—'}</td>
+                        <td className="px-4 py-3 text-right">{disp == null ? '—' : <span className={disp <= 20 ? 'font-semibold text-rose-600' : 'text-slate-600'}>{disp}</span>}</td>
+                        <td className="px-4 py-3">{s.vencimiento ? <span className={vencida ? 'font-semibold text-rose-600' : 'text-slate-600'}>{s.vencimiento}</span> : '—'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`badge ${s.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{s.activo ? 'Activo' : 'Inactivo'}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button onClick={() => editarSecuencia(s)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-brand-600"><Pencil size={16} /></button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Los comprobantes electrónicos (e-CF) además requieren autorización como emisor y firma digital; esa transmisión a la DGII se conecta cuando tengas el certificado. Todo lo demás ya queda listo.
+            </p>
+          </div>
+        </div>
       ) : tab === 'auditoria' ? (
         <DataTable
           rows={auditoria}
@@ -903,6 +1051,56 @@ export default function Configuracion() {
               Proveedor activo
             </label>
           )}
+        </div>
+      </Modal>
+
+      {/* MODAL SECUENCIA NCF */}
+      <Modal
+        open={openS}
+        title={editS ? `Secuencia ${editS.tipo} · ${editS.descripcion}` : 'Secuencia'}
+        onClose={() => setOpenS(false)}
+        footer={
+          <>
+            <button className="btn-ghost" onClick={() => setOpenS(false)}>Cancelar</button>
+            <button className="btn-primary" onClick={guardarSecuencia} disabled={savingS}>{savingS ? 'Guardando…' : 'Guardar'}</button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Carga el rango tal como lo autorizó la DGII. El sistema irá asignando el <b>próximo</b> número a cada factura de este tipo.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Prefijo</label>
+              <input className="input font-mono uppercase" value={formS.prefijo} maxLength={4} onChange={(e) => setFormS({ ...formS, prefijo: e.target.value.toUpperCase() })} placeholder={editS?.tipo} />
+            </div>
+            <div>
+              <label className="label">Vence (opcional)</label>
+              <input type="date" className="input" value={formS.vencimiento} onChange={(e) => setFormS({ ...formS, vencimiento: e.target.value })} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="label">Desde</label>
+              <input type="number" min={1} className="input" value={formS.secuencia_desde} onChange={(e) => setFormS({ ...formS, secuencia_desde: e.target.value })} placeholder="1" />
+            </div>
+            <div>
+              <label className="label">Hasta</label>
+              <input type="number" min={1} className="input" value={formS.secuencia_hasta} onChange={(e) => setFormS({ ...formS, secuencia_hasta: e.target.value })} placeholder="1000" />
+            </div>
+            <div>
+              <label className="label">Próximo</label>
+              <input type="number" min={1} className="input" value={formS.secuencia_actual} onChange={(e) => setFormS({ ...formS, secuencia_actual: e.target.value })} placeholder="= Desde" />
+            </div>
+          </div>
+          <p className="text-xs text-slate-500">
+            Ejemplo: rango <span className="font-mono">1</span> a <span className="font-mono">1000</span> con prefijo <span className="font-mono">{editS?.electronico ? 'E32' : 'B02'}</span> genera <span className="font-mono">{editS?.electronico ? 'E320000000001' : 'B0200000001'}</span> en adelante.
+          </p>
+          <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
+            <input type="checkbox" checked={formS.activo} onChange={(e) => setFormS({ ...formS, activo: e.target.checked })} />
+            Secuencia activa (disponible para facturar)
+          </label>
         </div>
       </Modal>
 

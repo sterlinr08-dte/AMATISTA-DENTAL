@@ -43,6 +43,12 @@ const estadoBadge: Record<EstadoFactura, string> = {
   ANULADA: 'bg-rose-50 text-rose-700',
 }
 
+// Tipo de comprobante fiscal según lo que se factura y el modo (tradicional / e-CF).
+const CODIGO_COMPROBANTE = {
+  consumo: { tradicional: 'B02', electronico: 'E32' },
+  credito: { tradicional: 'B01', electronico: 'E31' },
+} as const
+
 export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } = {}) {
   const { perfil, puedeAccion } = useAuth()
   const { negocio } = useNegocio()
@@ -75,7 +81,7 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   const [devMetodo, setDevMetodo] = useState('Efectivo')
   const [devMotivo, setDevMotivo] = useState('')
   const [savingDev, setSavingDev] = useState(false)
-  const [devOk, setDevOk] = useState<{ codigo: string; monto: number } | null>(null)
+  const [devOk, setDevOk] = useState<{ codigo: string; monto: number; ncf?: string | null } | null>(null)
 
   // formulario de nueva factura
   const [clienteId, setClienteId] = useState('')
@@ -107,6 +113,11 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   // Buscador de cliente (combobox)
   const [buscarCliente, setBuscarCliente] = useState('')
   const [clienteFocus, setClienteFocus] = useState(false)
+
+  // Comprobante fiscal DGII (solo si está activo en Configuración)
+  const [tipoComprobante, setTipoComprobante] = useState<'consumo' | 'credito'>('consumo')
+  const [compradorRnc, setCompradorRnc] = useState('')
+  const [compradorRazon, setCompradorRazon] = useState('')
 
   // Resultados del buscador (servicios + artículos)
   const q = buscarItem.trim().toLowerCase()
@@ -333,6 +344,9 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     setCantOriginal({})
     setLineasOriginales(0)
     setBuscarItem('')
+    setTipoComprobante('consumo')
+    setCompradorRnc('')
+    setCompradorRazon('')
     setOpen(true)
   }
 
@@ -413,6 +427,27 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
       notas: notas || null,
     }
 
+    // Comprobante fiscal DGII (solo facturas nuevas, si está activo)
+    let ncfDatos: Record<string, any> = {}
+    if (!editId && negocio.comprobantes_activos) {
+      if (tipoComprobante === 'credito' && !compradorRnc.trim()) {
+        setSaving(false)
+        return alert('Para Crédito Fiscal debes indicar el RNC/cédula del comprador.')
+      }
+      const tipo = CODIGO_COMPROBANTE[tipoComprobante][negocio.modo_comprobante]
+      const { data: ncf, error: eNcf } = await supabase.rpc('siguiente_ncf', { p_tipo: tipo })
+      if (eNcf || !ncf) {
+        setSaving(false)
+        return alert('No se pudo asignar el comprobante fiscal (' + tipo + '): ' + (eNcf?.message || 'sin número disponible') + '.\n\nRevisa la secuencia en Configuración → Comprobantes DGII.')
+      }
+      ncfDatos = {
+        ncf,
+        tipo_comprobante: tipo,
+        comprador_rnc: compradorRnc.trim() || null,
+        comprador_razon_social: compradorRazon.trim() || (tipoComprobante === 'credito' ? (clientes.find((c) => c.id === clienteId)?.nombre ?? null) : null),
+      }
+    }
+
     let facturaId = editId
     if (editId) {
       // Editar: devolver el stock anterior, actualizar y reinsertar el detalle
@@ -430,7 +465,7 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     } else {
       const { data: factura, error } = await supabase
         .from('facturas')
-        .insert({ ...datos, estado: 'PENDIENTE', metodo_pago: null })
+        .insert({ ...datos, ...ncfDatos, estado: 'PENDIENTE', metodo_pago: null })
         .select()
         .single()
       if (error || !factura) {
@@ -590,7 +625,10 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   <div class="meta">
     <div><span class="k">Cliente:</span> ${cliente}</div>
     <div><span class="k">Fecha:</span> ${esc(fechaCorta(f.fecha))}</div>
+    ${f.ncf ? `<div><span class="k">NCF:</span> <b>${esc(f.ncf)}</b></div>` : ''}
     <div><span class="k">Tipo:</span> ${f.tipo_venta === 'CREDITO' ? 'Crédito' : 'Contado'}</div>
+    ${f.comprador_rnc ? `<div><span class="k">RNC comprador:</span> ${esc(f.comprador_rnc)}</div>` : ''}
+    ${f.comprador_razon_social ? `<div><span class="k">Razón social:</span> ${esc(f.comprador_razon_social)}</div>` : ''}
     <div><span class="k">Estado:</span> ${esc(f.estado)}</div>
     ${f.metodo_pago ? `<div><span class="k">Pago:</span> ${esc(f.metodo_pago)}</div>` : ''}
   </div>
@@ -669,6 +707,17 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
       const { data: caja } = await supabase.from('caja_sesiones').select('id').eq('estado', 'ABIERTA').order('abierta_at', { ascending: false }).limit(1).maybeSingle()
       cajaId = (caja as any)?.id ?? null
     }
+    // Nota de crédito fiscal (si hay comprobantes activos y la factura tenía NCF)
+    let notaDatos: Record<string, any> = {}
+    if (negocio.comprobantes_activos && devolverFactura.ncf) {
+      const tipoNota = negocio.modo_comprobante === 'electronico' ? 'E34' : 'B04'
+      const { data: ncfNota, error: eNota } = await supabase.rpc('siguiente_ncf', { p_tipo: tipoNota })
+      if (eNota || !ncfNota) {
+        setSavingDev(false)
+        return alert('No se pudo asignar la nota de crédito (' + tipoNota + '): ' + (eNota?.message || 'sin número disponible') + '.\n\nRevisa la secuencia en Configuración → Comprobantes DGII.')
+      }
+      notaDatos = { ncf: ncfNota, tipo_comprobante: tipoNota, ncf_afectado: devolverFactura.ncf }
+    }
     const { data: dev, error: ed } = await supabase.from('devoluciones').insert({
       factura_id: devolverFactura.id,
       monto,
@@ -676,7 +725,8 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
       motivo: devMotivo || null,
       caja_id: cajaId,
       registrado_por: perfil?.nombre || perfil?.username || null,
-    }).select('id').single()
+      ...notaDatos,
+    }).select('id, ncf').single()
     if (ed || !dev) { setSavingDev(false); return alert('Error al registrar la devolución: ' + ed?.message) }
     const { error: ei } = await supabase.from('devolucion_items').insert(
       lineas.map(({ it, cant }) => ({
@@ -706,7 +756,7 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
       })
     }
     setSavingDev(false)
-    setDevOk({ codigo: codigoFactura(devolverFactura), monto })
+    setDevOk({ codigo: codigoFactura(devolverFactura), monto, ncf: (dev as any).ncf ?? null })
     cargar()
   }
 
@@ -932,6 +982,44 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
             </div>
             <p className="mt-1 text-xs text-slate-600">Secuencia independiente por tipo: {tipoVenta === 'CREDITO' ? 'CR000001, CR000002… (crédito)' : 'CO000001, CO000002… (contado)'}.</p>
           </div>
+
+          {/* Comprobante fiscal DGII (solo si está activo en Configuración) */}
+          {negocio.comprobantes_activos && !editId && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3">
+              <label className="label">Comprobante fiscal</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTipoComprobante('consumo')}
+                  className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${tipoComprobante === 'consumo' ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                >
+                  Consumo <span className="font-mono text-xs opacity-70">{CODIGO_COMPROBANTE.consumo[negocio.modo_comprobante]}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoComprobante('credito')}
+                  className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${tipoComprobante === 'credito' ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                >
+                  Crédito Fiscal <span className="font-mono text-xs opacity-70">{CODIGO_COMPROBANTE.credito[negocio.modo_comprobante]}</span>
+                </button>
+              </div>
+              {tipoComprobante === 'credito' && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <span className="text-xs font-medium text-slate-600">RNC / Cédula del comprador</span>
+                    <input className="input" value={compradorRnc} onChange={(e) => setCompradorRnc(e.target.value)} placeholder="1-31-XXXXX-X" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-medium text-slate-600">Razón social</span>
+                    <input className="input" value={compradorRazon} onChange={(e) => setCompradorRazon(e.target.value)} placeholder="Nombre fiscal del cliente" />
+                  </div>
+                </div>
+              )}
+              <p className="mt-2 text-[11px] text-amber-700/80">
+                Modo: {negocio.modo_comprobante === 'electronico' ? 'e-CF electrónico' : 'NCF tradicional'}. El número se asigna automáticamente al guardar.
+              </p>
+            </div>
+          )}
 
           {/* Tratamientos realizados por el odontólogo, pendientes de facturar */}
           {pendientesPlan.length > 0 && (
@@ -1235,6 +1323,8 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
             </div>
             <div className="text-sm text-slate-600">
               <p><span className="font-medium">Cliente:</span> {(() => { const cl = clientes.find((c) => c.id === facturaVista.cliente_id); return cl ? `${codigoCliente(cl.codigo)} · ${facturaVista.cliente_nombre}` : facturaVista.cliente_nombre })()}</p>
+              {facturaVista.ncf && <p><span className="font-medium">NCF:</span> {facturaVista.ncf}</p>}
+              {facturaVista.comprador_rnc && <p><span className="font-medium">RNC:</span> {facturaVista.comprador_rnc}</p>}
               <p><span className="font-medium">Estado:</span> {facturaVista.estado}</p>
               <p><span className="font-medium">Pago:</span> {facturaVista.metodo_pago}</p>
             </div>
@@ -1308,6 +1398,7 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
                 <p className="font-display text-base font-bold text-brand-800">{negocio.nombre}</p>
                 {negocio.rnc && <p className="text-xs text-slate-500">RNC: {negocio.rnc}</p>}
                 <p className="mt-1 text-xs font-semibold text-slate-600">NOTA DE CRÉDITO / DEVOLUCIÓN</p>
+                {devOk.ncf && <p className="text-xs font-semibold text-slate-700">NCF: {devOk.ncf}</p>}
                 <p className="text-xs text-slate-600">Factura {devOk.codigo} · {fechaCorta(hoyISO())}</p>
               </div>
               <div className="flex justify-between border-t pt-1 text-base font-bold text-slate-800"><span>Total devuelto</span><span>{money(devOk.monto)}</span></div>
