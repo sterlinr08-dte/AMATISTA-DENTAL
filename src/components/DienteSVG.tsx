@@ -22,6 +22,7 @@ function tipoPorFdi(fdi: number): TipoDiente {
 const FOTOS: Partial<Record<TipoDiente, string>> = {
   incisivo: `${import.meta.env.BASE_URL}dientes/incisivo.png`,
   canino: `${import.meta.env.BASE_URL}dientes/canino.png`,
+  premolar: `${import.meta.env.BASE_URL}dientes/premolar.png`,
   molar: `${import.meta.env.BASE_URL}dientes/molar.png`,
 }
 
