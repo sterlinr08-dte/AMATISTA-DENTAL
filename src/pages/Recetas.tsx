@@ -331,11 +331,20 @@ export default function Recetas({ pacienteFijo }: { pacienteFijo?: string } = {}
     <div class="nombre">${doctor}</div>
     <div style="font-size:12px;color:#6b7280;">Firma del doctor(a)</div>
   </div>
+  <script>
+    // Espera a que el logo (y cualquier imagen) termine de cargar antes de
+    // abrir el diálogo de impresión, para que la hoja no salga sin logo.
+    window.onload = function () {
+      var imgs = Array.prototype.slice.call(document.images)
+      Promise.all(imgs.map(function (img) {
+        return img.complete ? Promise.resolve() : new Promise(function (res) { img.onload = img.onerror = res })
+      })).then(function () { setTimeout(function () { window.focus(); window.print() }, 150) })
+    }
+  </script>
 </body>
 </html>`)
     w.document.close()
     w.focus()
-    w.print()
   }
 
   const columnas: Columna<Receta>[] = [

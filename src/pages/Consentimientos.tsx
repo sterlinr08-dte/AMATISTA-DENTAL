@@ -278,10 +278,19 @@ export default function Consentimientos({ pacienteFijo }: { pacienteFijo?: strin
       <div class="firma-rol">Firma del profesional</div>
     </div>
   </div>
+  <script>
+    // Espera a que el logo y la firma terminen de cargar antes de imprimir,
+    // para que la hoja no salga sin logo ni firma.
+    window.onload = function () {
+      var imgs = Array.prototype.slice.call(document.images)
+      Promise.all(imgs.map(function (img) {
+        return img.complete ? Promise.resolve() : new Promise(function (res) { img.onload = img.onerror = res })
+      })).then(function () { setTimeout(function () { window.focus(); window.print() }, 150) })
+    }
+  </script>
 </body></html>`)
     w.document.close()
     w.focus()
-    w.print()
   }
 
   const columnas: Columna<Consentimiento>[] = [
