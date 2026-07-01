@@ -7,6 +7,7 @@ import { ARCADA_PERMANENTE_SUP, ARCADA_PERMANENTE_INF } from '../lib/dental'
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
 import Modal from '../components/Modal'
+import DienteSVG from '../components/DienteSVG'
 
 // Los campos numéricos se editan como texto para permitir el valor vacío (null).
 type CampoNum =
@@ -154,7 +155,52 @@ export default function Periodontograma() {
     cargarRegistros(pacienteId, fecha)
   }
 
-  function Diente({ n }: { n: number }) {
+  // Color de una profundidad de sondaje (mm): verde ≤3, ámbar 4–5, rojo ≥6.
+  function colorPS(v: number | null): string {
+    if (v == null) return 'text-slate-300'
+    if (v <= 3) return 'text-emerald-600'
+    if (v <= 5) return 'text-amber-600'
+    return 'text-rose-600 font-bold'
+  }
+
+  function fmtNum(v: number | null | undefined): string {
+    return v == null ? '·' : String(v)
+  }
+
+  // Peor bolsa de la pieza (para tintar el diente).
+  function maxPS(r: MarcaPeriodontal | undefined): number | null {
+    if (!r) return null
+    const vals = [r.ps_vm, r.ps_vc, r.ps_vd, r.ps_lm, r.ps_lc, r.ps_ld].filter(
+      (x): x is number => x != null,
+    )
+    return vals.length ? Math.max(...vals) : null
+  }
+
+  // Tinte del diente según su peor bolsa: rojo (≥6), ámbar (4–5), verde suave si sano.
+  function tintePieza(r: MarcaPeriodontal | undefined): string | undefined {
+    const m = maxPS(r)
+    if (m == null) return undefined
+    if (m >= 6) return '#ef4444'
+    if (m >= 4) return '#f59e0b'
+    return '#34d399'
+  }
+
+  // Trío de profundidades de sondaje (mesial–central–distal) de una cara.
+  function TrioPS({ vals }: { vals: (number | null)[] }) {
+    return (
+      <div className="flex justify-center gap-1 font-mono text-[11px] leading-none">
+        {vals.map((v, i) => (
+          <span key={i} className={`w-3 text-center ${colorPS(v)}`}>
+            {fmtNum(v)}
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  // Una columna de la carta: cara vestibular arriba, diente y número, cara
+  // palatino/lingual abajo, con recesión, movilidad, furca y sangrado.
+  function ColumnaDiente({ n, arriba }: { n: number; arriba: boolean }) {
     const r = registroDe(n)
     const registrado = !!r
     return (
@@ -163,28 +209,54 @@ export default function Periodontograma() {
         onClick={() => abrirDiente(n)}
         title={registrado ? `Diente ${n} · con registro` : `Diente ${n} · sin registrar`}
         className={
-          'relative flex h-10 w-10 items-center justify-center rounded-lg border text-xs font-semibold shadow-sm transition hover:ring-2 hover:ring-amber-300 ' +
-          (registrado
-            ? 'border-amber-400 bg-amber-50 text-amber-800'
-            : 'border-slate-300 bg-white text-slate-700')
+          'flex w-12 shrink-0 flex-col items-center gap-0.5 rounded-lg border px-0.5 py-1 transition hover:ring-2 hover:ring-amber-300 ' +
+          (registrado ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 bg-white')
         }
       >
-        {n}
-        {r?.sangrado && (
-          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-rose-500" title="Sangrado" />
-        )}
+        {/* Vestibular */}
+        <span className="text-[8px] font-semibold uppercase tracking-wide text-slate-400">V</span>
+        <TrioPS vals={[r?.ps_vm ?? null, r?.ps_vc ?? null, r?.ps_vd ?? null]} />
+        <span className="font-mono text-[9px] text-sky-600" title="Recesión vestibular">
+          {r?.rec_v != null ? `↕${r.rec_v}` : ''}
+        </span>
+
+        {/* Diente + número + sangrado */}
+        <span className="relative">
+          <DienteSVG fdi={n} arriba={arriba} colorPieza={tintePieza(r)} size={26} />
+          {r?.sangrado && (
+            <span
+              className="absolute -right-0.5 top-0 h-2.5 w-2.5 rounded-full border border-white bg-rose-500"
+              title="Sangrado al sondaje"
+            />
+          )}
+        </span>
+        <span className="font-mono text-[10px] font-semibold text-slate-600">{n}</span>
+
+        {/* Palatino / Lingual */}
+        <span className="font-mono text-[9px] text-sky-600" title="Recesión palatino/lingual">
+          {r?.rec_l != null ? `↕${r.rec_l}` : ''}
+        </span>
+        <TrioPS vals={[r?.ps_lm ?? null, r?.ps_lc ?? null, r?.ps_ld ?? null]} />
+        <span className="text-[8px] font-semibold uppercase tracking-wide text-slate-400">P/L</span>
+
+        {/* Movilidad / furca */}
+        {(r?.movilidad || r?.furca) ? (
+          <span className="text-[8px] font-semibold text-slate-500">
+            {r?.movilidad ? `M${r.movilidad}` : ''}{r?.movilidad && r?.furca ? ' ' : ''}{r?.furca ? `F${r.furca}` : ''}
+          </span>
+        ) : null}
       </button>
     )
   }
 
-  function Arcada({ dientes }: { dientes: number[] }) {
+  function Arcada({ dientes, arriba }: { dientes: number[]; arriba: boolean }) {
     const mitad = 8
     return (
-      <div className="flex items-center justify-center gap-1">
+      <div className="flex items-stretch justify-center gap-1">
         {dientes.map((n, i) => (
-          <div key={n} className="flex items-center gap-1">
-            {i === mitad && <div className="mx-1 h-10 w-px bg-slate-300" />}
-            <Diente n={n} />
+          <div key={n} className="flex items-stretch gap-1">
+            {i === mitad && <div className="mx-1 w-px self-stretch bg-slate-300" />}
+            <ColumnaDiente n={n} arriba={arriba} />
           </div>
         ))}
       </div>
@@ -230,39 +302,45 @@ export default function Periodontograma() {
       ) : (
         <div className="space-y-6">
           {/* Carta periodontal */}
-          <div className="card flex flex-col items-center gap-4 py-6">
+          <div className="card py-6">
             {cargandoRegistros ? (
               <Cargando texto="Cargando periodontograma…" />
             ) : (
-              <>
-                <Arcada dientes={ARCADA_PERMANENTE_SUP} />
-                <div className="my-1 flex items-center gap-2 text-xs uppercase tracking-wide text-slate-400">
-                  <Ruler size={16} className="text-amber-400" />
-                  <span>Arcada superior · inferior</span>
+              <div className="overflow-x-auto">
+                <div className="flex min-w-max flex-col items-center gap-3">
+                  <span className="text-xs uppercase tracking-wide text-slate-400">Arcada superior</span>
+                  <Arcada dientes={ARCADA_PERMANENTE_SUP} arriba={true} />
+                  <div className="my-1 flex items-center gap-2 text-xs uppercase tracking-wide text-slate-400">
+                    <Ruler size={16} className="text-amber-400" />
+                    <span>Clic en un diente para registrar / editar</span>
+                  </div>
+                  <Arcada dientes={ARCADA_PERMANENTE_INF} arriba={false} />
+                  <span className="text-xs uppercase tracking-wide text-slate-400">Arcada inferior</span>
                 </div>
-                <Arcada dientes={ARCADA_PERMANENTE_INF} />
-              </>
+              </div>
             )}
           </div>
 
           {/* Leyenda */}
           <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-600">
             <span className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1">
-              <span className="h-3 w-3 rounded border border-amber-400 bg-amber-50" />
-              Diente con registro
+              <span className="font-mono font-bold text-emerald-600">1-3</span> Sondaje normal (mm)
             </span>
             <span className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1">
-              <span className="h-2 w-2 rounded-full bg-rose-500" />
-              Sangrado al sondaje
+              <span className="font-mono font-bold text-amber-600">4-5</span> Bolsa moderada
             </span>
             <span className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1">
-              Profundidad de sondaje (PS) en mm
+              <span className="font-mono font-bold text-rose-600">≥6</span> Bolsa profunda
             </span>
             <span className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1">
-              Recesión en mm
+              <span className="h-2 w-2 rounded-full bg-rose-500" /> Sangrado al sondaje
             </span>
             <span className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1">
-              Movilidad 0–3
+              <span className="font-mono text-sky-600">↕</span> Recesión (mm)
+            </span>
+            <span className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1">
+              <span className="font-semibold text-slate-500">M</span> Movilidad ·{' '}
+              <span className="font-semibold text-slate-500">F</span> Furca
             </span>
           </div>
 
