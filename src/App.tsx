@@ -82,7 +82,7 @@ export default function App() {
       <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="relative z-10 flex items-center gap-3 border-b-2 border-[#9c7d18] bg-[linear-gradient(115deg,transparent_40%,rgba(255,255,255,0.6)_48%,rgba(255,255,255,0.15)_52%,transparent_60%),linear-gradient(180deg,rgba(255,255,255,0.4),transparent_46%),linear-gradient(180deg,#f3dd82_0%,#e0bf54_26%,#c59d26_52%,#b8901f_74%,#d7ad3c_100%)] px-4 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.65),inset_0_-2px_6px_-2px_rgba(120,90,10,0.5),0_8px_18px_-6px_rgba(176,141,28,0.65)]">
+        <header className="relative z-10 flex items-center gap-3 border-b-2 border-[#9c7d18] bg-[linear-gradient(180deg,rgba(255,255,255,0.28),transparent_55%),linear-gradient(180deg,#e6c356,#c9a227_58%,#b8901f)] px-4 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_8px_18px_-6px_rgba(176,141,28,0.65)]">
           <button onClick={() => setMenuOpen(true)} className="rounded-lg p-1.5 text-white hover:bg-white/20 lg:hidden" aria-label="Abrir menú">
             <Menu size={24} />
           </button>

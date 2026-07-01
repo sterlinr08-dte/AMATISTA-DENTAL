@@ -92,7 +92,7 @@ export default function Sidebar({ open, onClose }: Props) {
       {open && <div className="fixed inset-0 z-30 bg-slate-900/50 lg:hidden" onClick={onClose} />}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r-2 border-[#9c7d18] bg-[linear-gradient(158deg,transparent_38%,rgba(255,255,255,0.45)_46%,rgba(255,255,255,0.1)_50%,transparent_58%),linear-gradient(90deg,rgba(255,255,255,0.32),transparent_20%,transparent_74%,rgba(0,0,0,0.18)),linear-gradient(108deg,#c6a128_0%,#e4c76a_18%,#f4e4a0_29%,#d5b444_42%,#bd9420_60%,#d9b23c_79%,#b58d1c_100%)] text-amber-50 shadow-[inset_1px_1px_0_rgba(255,255,255,0.5),inset_-7px_0_18px_-10px_rgba(0,0,0,0.4),10px_0_34px_-12px_rgba(176,141,28,0.6)] transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r-2 border-[#9c7d18] bg-[linear-gradient(180deg,rgba(255,255,255,0.2),transparent_24%),linear-gradient(165deg,#e6c356,#cfa62b_45%,#b8901f)] text-amber-50 shadow-[inset_1px_1px_0_rgba(255,255,255,0.45),inset_-7px_0_18px_-10px_rgba(0,0,0,0.4),10px_0_34px_-12px_rgba(176,141,28,0.6)] transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
