@@ -75,7 +75,7 @@ export default function Configuracion() {
   const pagProv = usePaginacion(proveedores, 10)
 
   // datos del negocio
-  const [formNeg, setFormNeg] = useState({ nombre: '', direccion: '', referencia: '', telefono: '', whatsapp: '', instagram: '', rnc: '', razon_social: '', comprobantes_activos: false, modo_comprobante: 'tradicional' as 'tradicional' | 'electronico', ancho_ticket: 58, auto_imprimir: true, ...PREFIJOS_DEFAULT })
+  const [formNeg, setFormNeg] = useState({ nombre: '', direccion: '', referencia: '', telefono: '', whatsapp: '', instagram: '', rnc: '', razon_social: '', comprobantes_activos: false, modo_comprobante: 'tradicional' as 'tradicional' | 'electronico', ecf_proveedor: '', ecf_api_url: '', ecf_api_token: '', ecf_ambiente: 'prueba' as 'prueba' | 'produccion', ecf_emision_auto: false, ancho_ticket: 58, auto_imprimir: true, ...PREFIJOS_DEFAULT })
   const [savingNeg, setSavingNeg] = useState(false)
 
   // comprobantes fiscales (secuencias NCF / e-CF)
@@ -131,6 +131,11 @@ export default function Configuracion() {
       razon_social: neg.razon_social ?? '',
       comprobantes_activos: neg.comprobantes_activos ?? false,
       modo_comprobante: (neg.modo_comprobante === 'electronico' ? 'electronico' : 'tradicional'),
+      ecf_proveedor: neg.ecf_proveedor ?? '',
+      ecf_api_url: neg.ecf_api_url ?? '',
+      ecf_api_token: neg.ecf_api_token ?? '',
+      ecf_ambiente: (neg.ecf_ambiente === 'produccion' ? 'produccion' : 'prueba'),
+      ecf_emision_auto: neg.ecf_emision_auto ?? false,
       ancho_ticket: Number(neg.ancho_ticket ?? 58),
       auto_imprimir: neg.auto_imprimir ?? true,
       prefijo_caja: neg.prefijo_caja ?? PREFIJOS_DEFAULT.prefijo_caja,
@@ -781,6 +786,48 @@ export default function Configuracion() {
             <p className="mt-3 text-xs text-slate-500">
               Los comprobantes electrónicos (e-CF) además requieren autorización como emisor y firma digital; esa transmisión a la DGII se conecta cuando tengas el certificado. Todo lo demás ya queda listo.
             </p>
+          </div>
+
+          {/* Emisor electrónico (e-CF) — se activa cuando la DGII apruebe */}
+          <div className="card space-y-4">
+            <h3 className="font-display text-lg font-bold text-slate-800">Emisor electrónico (e-CF)</h3>
+            <p className="text-sm text-slate-600">
+              Cuando la DGII te autorice como emisor electrónico, aquí conectas tu <b>proveedor de facturación electrónica</b>
+              (o el Facturador Gratuito). El sistema ya asigna el e-NCF e imprime el QR; solo falta este enlace para que la
+              factura se <b>envíe sola</b> a la DGII.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="label">Proveedor</label>
+                <input className="input" value={formNeg.ecf_proveedor} onChange={(e) => setFormNeg({ ...formNeg, ecf_proveedor: e.target.value })} placeholder="Nombre del proveedor / Facturador Gratuito" />
+              </div>
+              <div>
+                <label className="label">Ambiente</label>
+                <select className="input" value={formNeg.ecf_ambiente} onChange={(e) => setFormNeg({ ...formNeg, ecf_ambiente: e.target.value as 'prueba' | 'produccion' })}>
+                  <option value="prueba">Prueba / Certificación</option>
+                  <option value="produccion">Producción</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="label">URL de la API del proveedor</label>
+              <input className="input font-mono text-sm" value={formNeg.ecf_api_url} onChange={(e) => setFormNeg({ ...formNeg, ecf_api_url: e.target.value })} placeholder="https://api.proveedor.com/ecf/emitir" />
+            </div>
+            <div>
+              <label className="label">Token / clave de la API</label>
+              <input type="password" className="input font-mono text-sm" value={formNeg.ecf_api_token} onChange={(e) => setFormNeg({ ...formNeg, ecf_api_token: e.target.value })} placeholder="Se lo da tu proveedor" />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={formNeg.ecf_emision_auto} onChange={(e) => setFormNeg({ ...formNeg, ecf_emision_auto: e.target.checked })} />
+              Enviar el e-CF a la DGII <b>automáticamente</b> al guardar la factura
+            </label>
+            <p className="text-xs text-slate-500">
+              Mientras esto esté vacío, las facturas electrónicas quedan con su e-NCF y en estado <b>“Pendiente de envío”</b>.
+              El certificado digital y la firma se gestionan con el proveedor.
+            </p>
+            <div className="flex justify-end">
+              <button className="btn-primary" onClick={guardarNegocio} disabled={savingNeg}>{savingNeg ? 'Guardando…' : 'Guardar emisor'}</button>
+            </div>
           </div>
         </div>
       ) : tab === 'auditoria' ? (

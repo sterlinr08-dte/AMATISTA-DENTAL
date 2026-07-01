@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Plus, Trash2, Printer, Ban, X, Search, Receipt, UserPlus, Undo2, Settings } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
 import { conectarQZ } from '../lib/impresora'
+import { emitirECF, construirUrlQrECF, ECF_ESTADO_LABEL, type EcfResultado, type EcfFacturaPayload, type EcfConfig } from '../lib/ecf'
 import { Cliente, Factura, FacturaItem, Servicio, Articulo, Empleado, EstadoFactura, TipoVenta } from '../types'
 import { money, fechaCorta, hoyISO, codigoArticulo, codigoFactura, codigoCliente } from '../lib/format'
 import { ITBIS_RATE } from '../lib/constants'
@@ -507,6 +509,44 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
           .in('id', planItemIds)
       }
     }
+
+    // e-CF: si es factura electrónica nueva con e-NCF, registrar/enviar el comprobante.
+    if (!editId && ncfDatos.ncf && negocio.modo_comprobante === 'electronico') {
+      const payload: EcfFacturaPayload = {
+        encf: ncfDatos.ncf,
+        tipo: ncfDatos.tipo_comprobante,
+        rnc_emisor: negocio.rnc,
+        razon_social_emisor: negocio.razon_social || negocio.nombre,
+        rnc_comprador: ncfDatos.comprador_rnc ?? null,
+        razon_social_comprador: ncfDatos.comprador_razon_social ?? null,
+        fecha: datos.fecha,
+        subtotal,
+        descuento: descuentoMonto,
+        itbis,
+        total,
+        items: items.map((l) => ({ descripcion: l.descripcion, cantidad: l.cantidad, precio: l.precio_unit, importe: l.cantidad * l.precio_unit })),
+      }
+      const config: EcfConfig = {
+        proveedor: negocio.ecf_proveedor || null,
+        api_url: negocio.ecf_api_url || null,
+        api_token: negocio.ecf_api_token || null,
+        ambiente: negocio.ecf_ambiente,
+        emision_auto: negocio.ecf_emision_auto,
+      }
+      // Solo se envía de verdad si el emisor está configurado y el envío automático está activo.
+      const res: EcfResultado = negocio.ecf_emision_auto && negocio.ecf_api_url && negocio.ecf_api_token
+        ? await emitirECF(payload, config)
+        : { ok: false, pendiente: true, estado: 'PENDIENTE', mensaje: negocio.ecf_api_url ? 'e-NCF asignado. Falta enviarlo a la DGII (envío manual).' : 'e-NCF asignado. Falta configurar el emisor electrónico.' }
+      await supabase.from('facturas').update({
+        ecf_estado: res.estado,
+        ecf_codigo_seguridad: res.codigo_seguridad ?? null,
+        ecf_track_id: res.track_id ?? null,
+        ecf_qr_url: res.qr_url ?? null,
+        ecf_fecha_firma: res.fecha_firma ?? null,
+        ecf_mensaje: res.mensaje ?? null,
+      }).eq('id', facturaId)
+    }
+
     setSaving(false)
     setOpen(false)
     await cargar()
@@ -557,12 +597,42 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   // Imprime la factura en HOJA NORMAL TAMAÑO CARTA (ventana autónoma con logo,
   // datos de la clínica, paciente, tabla de ítems y totales). Distinta del
   // ticket térmico de 72 mm (botón "Ticket").
-  function imprimirCarta() {
+  async function imprimirCarta() {
     const f = facturaVista
     if (!f) return
     const w = window.open('', '_blank', 'width=850,height=1100')
     if (!w) return alert('Permite las ventanas emergentes para imprimir.')
     const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    // Bloque e-CF: QR + código de seguridad (representación impresa del comprobante electrónico)
+    const esEcf = !!f.tipo_comprobante && f.tipo_comprobante.startsWith('E')
+    let ecfBloque = ''
+    if (esEcf) {
+      if (f.ecf_codigo_seguridad || f.ecf_qr_url) {
+        const urlQr = f.ecf_qr_url || construirUrlQrECF({
+          ambiente: negocio.ecf_ambiente,
+          rncEmisor: negocio.rnc,
+          rncComprador: f.comprador_rnc,
+          encf: f.ncf || '',
+          fechaEmision: fechaCorta(f.fecha).replace(/\//g, '-'),
+          montoTotal: Number(f.total),
+          fechaFirma: f.ecf_fecha_firma,
+          codigoSeguridad: f.ecf_codigo_seguridad || '',
+        })
+        let qrImg = ''
+        try { qrImg = `<img src="${await QRCode.toDataURL(urlQr, { margin: 1, width: 150 })}" alt="QR e-CF">` } catch { qrImg = '' }
+        ecfBloque = `<div class="ecf">
+          ${qrImg}
+          <div class="ecf-info">
+            <div class="ecf-t">COMPROBANTE FISCAL ELECTRÓNICO (e-CF)</div>
+            ${f.ecf_codigo_seguridad ? `<div>Código de seguridad: <b>${esc(f.ecf_codigo_seguridad)}</b></div>` : ''}
+            ${f.ecf_fecha_firma ? `<div>Fecha de firma: ${esc(fechaCorta(f.ecf_fecha_firma))}</div>` : ''}
+            <div>Representación impresa de un e-CF. Verifique su validez en dgii.gov.do</div>
+          </div>
+        </div>`
+      } else {
+        ecfBloque = `<div class="ecf-pend">e-CF ${esc(f.ncf || '')} — pendiente de envío a la DGII. Este documento no es válido como comprobante hasta ser aceptado.</div>`
+      }
+    }
     const logoSrc = `${location.origin}${import.meta.env.BASE_URL}${negocio.logo}`
     const cl = clientes.find((c) => c.id === f.cliente_id)
     const cliente = cl ? `${codigoCliente(cl.codigo)} · ${esc(f.cliente_nombre ?? cl.nombre)}` : esc(f.cliente_nombre ?? 'Cliente de contado')
@@ -604,6 +674,11 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   .tot .total { border-top:2px solid #c9a227; margin-top:4px; padding-top:6px; font-size:16px; font-weight:bold; color:#111827; }
   .tot .devuelto { color:#dc2626; font-weight:600; }
   .pie { margin-top:40px; border-top:1px solid #e5e7eb; padding-top:12px; text-align:center; font-size:11px; color:#6b7280; }
+  .ecf { margin-top:22px; display:flex; gap:14px; align-items:center; border:1px solid #e5e7eb; border-radius:10px; padding:12px 14px; }
+  .ecf img { width:110px; height:110px; }
+  .ecf-info { font-size:11px; color:#4b5563; line-height:1.5; }
+  .ecf-info .ecf-t { font-weight:bold; color:#111827; font-size:12px; margin-bottom:3px; }
+  .ecf-pend { margin-top:22px; border:1px dashed #f59e0b; background:#fffbeb; border-radius:10px; padding:10px 14px; font-size:11px; color:#92400e; }
   @page { size: letter; margin: 16mm; }
 </style></head><body>
   <div class="enc">
@@ -647,6 +722,8 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     <div class="fila total"><span>Total</span><span>${money(Number(f.total))}</span></div>
     ${devuelto > 0 ? `<div class="fila devuelto"><span>Devuelto</span><span>- ${money(devuelto)}</span></div>` : ''}
   </div>
+
+  ${ecfBloque}
 
   <div class="pie">
     <p>¡Gracias por confiar en ${esc(negocio.nombre)}!</p>
@@ -1325,6 +1402,14 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
               <p><span className="font-medium">Cliente:</span> {(() => { const cl = clientes.find((c) => c.id === facturaVista.cliente_id); return cl ? `${codigoCliente(cl.codigo)} · ${facturaVista.cliente_nombre}` : facturaVista.cliente_nombre })()}</p>
               {facturaVista.ncf && <p><span className="font-medium">NCF:</span> {facturaVista.ncf}</p>}
               {facturaVista.comprador_rnc && <p><span className="font-medium">RNC:</span> {facturaVista.comprador_rnc}</p>}
+              {facturaVista.ecf_estado && (
+                <p className="no-print">
+                  <span className="font-medium">e-CF:</span>{' '}
+                  <span className={`badge ${ECF_ESTADO_LABEL[facturaVista.ecf_estado]?.color || 'bg-slate-100 text-slate-600'}`}>
+                    {ECF_ESTADO_LABEL[facturaVista.ecf_estado]?.label || facturaVista.ecf_estado}
+                  </span>
+                </p>
+              )}
               <p><span className="font-medium">Estado:</span> {facturaVista.estado}</p>
               <p><span className="font-medium">Pago:</span> {facturaVista.metodo_pago}</p>
             </div>

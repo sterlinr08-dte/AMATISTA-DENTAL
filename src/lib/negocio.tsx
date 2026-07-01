@@ -17,6 +17,12 @@ export interface Negocio {
   // Comprobantes fiscales DGII
   comprobantes_activos: boolean // si se asignan NCF a las facturas
   modo_comprobante: 'tradicional' | 'electronico'
+  // Emisor electrónico e-CF
+  ecf_proveedor: string
+  ecf_api_url: string
+  ecf_api_token: string
+  ecf_ambiente: 'prueba' | 'produccion'
+  ecf_emision_auto: boolean
   // Prefijos configurables de las secuencias
   prefijo_caja: string
   prefijo_gasto: string
@@ -35,6 +41,11 @@ const DEFAULTS: Negocio = {
   razon_social: '',
   comprobantes_activos: false,
   modo_comprobante: 'tradicional',
+  ecf_proveedor: '',
+  ecf_api_url: '',
+  ecf_api_token: '',
+  ecf_ambiente: 'prueba',
+  ecf_emision_auto: false,
 }
 
 interface NegocioContextValue {
@@ -67,6 +78,11 @@ export function NegocioProvider({ children }: { children: ReactNode }) {
         auto_imprimir: data.auto_imprimir ?? DEFAULTS.auto_imprimir,
         comprobantes_activos: data.comprobantes_activos ?? false,
         modo_comprobante: (data.modo_comprobante === 'electronico' ? 'electronico' : 'tradicional'),
+        ecf_proveedor: data.ecf_proveedor ?? '',
+        ecf_api_url: data.ecf_api_url ?? '',
+        ecf_api_token: data.ecf_api_token ?? '',
+        ecf_ambiente: (data.ecf_ambiente === 'produccion' ? 'produccion' : 'prueba'),
+        ecf_emision_auto: data.ecf_emision_auto ?? false,
         prefijo_caja: data.prefijo_caja ?? DEFAULTS.prefijo_caja,
         prefijo_gasto: data.prefijo_gasto ?? DEFAULTS.prefijo_gasto,
         prefijo_pago: data.prefijo_pago ?? DEFAULTS.prefijo_pago,

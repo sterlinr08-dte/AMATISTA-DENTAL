@@ -118,6 +118,13 @@ export interface Factura {
   tipo_comprobante: string | null
   comprador_rnc: string | null
   comprador_razon_social: string | null
+  // e-CF (comprobante electrónico)
+  ecf_estado: string | null
+  ecf_codigo_seguridad: string | null
+  ecf_track_id: string | null
+  ecf_qr_url: string | null
+  ecf_fecha_firma: string | null
+  ecf_mensaje: string | null
 }
 
 export interface FacturaConItems extends Factura {
