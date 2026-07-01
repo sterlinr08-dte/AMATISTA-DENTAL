@@ -54,6 +54,58 @@ export function estadoDienteDef(v: string): EstadoDienteDef {
 // Caras / superficies de una pieza.
 export const CARAS_DIENTE = ['Vestibular', 'Palatino/Lingual', 'Mesial', 'Distal', 'Oclusal/Incisal']
 
+// Clasificación de Black de caries/restauraciones (Clase I a VI).
+export interface ClaseBlackDef {
+  value: number
+  label: string
+  romano: string
+  descripcion: string
+}
+
+export const CLASES_BLACK: ClaseBlackDef[] = [
+  {
+    value: 1,
+    label: 'Clase I',
+    romano: 'I',
+    descripcion: 'Fosas y fisuras: caras oclusales de premolares y molares, 2/3 oclusales de vestibular/lingual y cíngulo de anteriores.',
+  },
+  {
+    value: 2,
+    label: 'Clase II',
+    romano: 'II',
+    descripcion: 'Caras proximales (mesial/distal) de premolares y molares.',
+  },
+  {
+    value: 3,
+    label: 'Clase III',
+    romano: 'III',
+    descripcion: 'Caras proximales de dientes anteriores (incisivos y caninos), sin comprometer el ángulo incisal.',
+  },
+  {
+    value: 4,
+    label: 'Clase IV',
+    romano: 'IV',
+    descripcion: 'Caras proximales de anteriores que comprometen el ángulo incisal.',
+  },
+  {
+    value: 5,
+    label: 'Clase V',
+    romano: 'V',
+    descripcion: 'Tercio gingival (cervical) de las caras vestibular o lingual de cualquier diente.',
+  },
+  {
+    value: 6,
+    label: 'Clase VI',
+    romano: 'VI',
+    descripcion: 'Bordes incisales de anteriores y puntas de cúspides de posteriores (desgaste/abrasión).',
+  },
+]
+
+export function claseBlackDef(v: number | null | undefined): ClaseBlackDef | null {
+  if (v == null) return null
+  return CLASES_BLACK.find((c) => c.value === v) ?? null
+}
+
 export const GRUPOS_SANGUINEOS = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-']
 
 export const ESTADOS_PRESUPUESTO: { value: string; label: string; color: string }[] = [

@@ -316,6 +316,8 @@ export interface MarcaOdontograma {
   diente: number
   cara: string | null
   estado: EstadoDiente
+  // Clasificación de Black de la lesión/restauración (1=I … 6=VI). Null si no aplica.
+  clase_black: number | null
   tratamiento_id: string | null
   cita_id: string | null
   notas: string | null

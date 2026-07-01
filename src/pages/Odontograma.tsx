@@ -10,6 +10,8 @@ import {
   ARCADA_TEMPORAL_INF,
   ESTADOS_DIENTE,
   estadoDienteDef,
+  CLASES_BLACK,
+  claseBlackDef,
 } from '../lib/dental'
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
@@ -39,6 +41,7 @@ type Objetivo = { diente: number; cara: CaraValor | null }
 
 const formVacio = {
   estado: 'sano' as EstadoDiente,
+  clase_black: '',
   tratamiento_id: '',
   notas: '',
 }
@@ -113,6 +116,7 @@ export default function Odontograma() {
     const existente = obj.cara ? marcaCara(obj.diente, obj.cara) : marcaPieza(obj.diente)
     setForm({
       estado: existente?.estado ?? 'sano',
+      clase_black: existente?.clase_black != null ? String(existente.clase_black) : '',
       tratamiento_id: existente?.tratamiento_id ?? '',
       notas: existente?.notas ?? '',
     })
@@ -124,6 +128,7 @@ export default function Odontograma() {
     setSaving(true)
     const base = {
       estado: form.estado,
+      clase_black: form.clase_black ? Number(form.clase_black) : null,
       tratamiento_id: form.tratamiento_id || null,
       notas: form.notas || null,
     }
@@ -330,7 +335,7 @@ export default function Odontograma() {
             </p>
           </div>
 
-          {/* Leyenda */}
+          {/* Leyenda de estados */}
           <div className="flex flex-wrap gap-2">
             {ESTADOS_DIENTE.map((e) => (
               <span
@@ -343,6 +348,21 @@ export default function Odontograma() {
             ))}
           </div>
 
+          {/* Referencia: Clasificación de Black */}
+          <div className="card">
+            <h3 className="mb-3 text-sm font-semibold text-amber-800">Clasificación de Black</h3>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {CLASES_BLACK.map((c) => (
+                <div key={c.value} className="flex gap-2 rounded-lg border border-amber-100 bg-amber-50/40 p-2.5">
+                  <span className="flex h-6 w-9 shrink-0 items-center justify-center rounded-md bg-amber-100 text-xs font-bold text-amber-800">
+                    {c.romano}
+                  </span>
+                  <p className="text-xs leading-snug text-slate-600">{c.descripcion}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Marcas registradas */}
           <div className="overflow-x-auto panel-3d">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
@@ -351,6 +371,7 @@ export default function Odontograma() {
                   <th className="px-5 py-3 text-left">Diente</th>
                   <th className="px-5 py-3 text-left">Cara</th>
                   <th className="px-5 py-3 text-left">Estado</th>
+                  <th className="px-5 py-3 text-left">Clase (Black)</th>
                   <th className="px-5 py-3 text-left">Notas</th>
                   <th className="px-5 py-3"></th>
                 </tr>
@@ -358,7 +379,7 @@ export default function Odontograma() {
               <tbody className="divide-y divide-slate-50">
                 {marcas.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-8 text-center text-slate-500">
+                    <td colSpan={6} className="px-5 py-8 text-center text-slate-500">
                       Sin marcas registradas para este paciente.
                     </td>
                   </tr>
@@ -379,6 +400,18 @@ export default function Odontograma() {
                               />
                               {def.label}
                             </span>
+                          </td>
+                          <td className="px-5 py-3">
+                            {claseBlackDef(m.clase_black) ? (
+                              <span
+                                className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800"
+                                title={claseBlackDef(m.clase_black)!.descripcion}
+                              >
+                                {claseBlackDef(m.clase_black)!.label}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
                           </td>
                           <td className="px-5 py-3 text-slate-600">{m.notas || '—'}</td>
                           <td className="px-5 py-3">
@@ -434,6 +467,26 @@ export default function Odontograma() {
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="label">Clasificación de Black (opcional)</label>
+            <select
+              className="input"
+              value={form.clase_black}
+              onChange={(e) => setForm({ ...form, clase_black: e.target.value })}
+            >
+              <option value="">Sin clasificar</option>
+              {CLASES_BLACK.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            {form.clase_black && (
+              <p className="mt-1.5 text-xs text-slate-500">
+                {claseBlackDef(Number(form.clase_black))?.descripcion}
+              </p>
+            )}
           </div>
           <div>
             <label className="label">Tratamiento (opcional)</label>
