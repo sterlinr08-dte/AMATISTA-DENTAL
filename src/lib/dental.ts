@@ -19,10 +19,21 @@ export const DIENTES_TEMPORALES = {
 }
 
 // Filas del odontograma listas para render (cada fila = mitad de una arcada).
+// Vista del odontólogo frente al paciente: en cada fila, primero el lado
+// derecho del paciente y luego el izquierdo, con la línea media al centro.
+// En las arcadas INFERIORES se invierte cada cuadrante para que los incisivos
+// centrales (41/31, 81/71) queden al centro, alineados con los superiores
+// (11/21), y los molares en los extremos.
 export const ARCADA_PERMANENTE_SUP = [...DIENTES_PERMANENTES.supDerecho, ...DIENTES_PERMANENTES.supIzquierdo]
-export const ARCADA_PERMANENTE_INF = [...DIENTES_PERMANENTES.infDerecho, ...DIENTES_PERMANENTES.infIzquierdo]
+export const ARCADA_PERMANENTE_INF = [
+  ...[...DIENTES_PERMANENTES.infDerecho].reverse(),
+  ...[...DIENTES_PERMANENTES.infIzquierdo].reverse(),
+]
 export const ARCADA_TEMPORAL_SUP = [...DIENTES_TEMPORALES.supDerecho, ...DIENTES_TEMPORALES.supIzquierdo]
-export const ARCADA_TEMPORAL_INF = [...DIENTES_TEMPORALES.infDerecho, ...DIENTES_TEMPORALES.infIzquierdo]
+export const ARCADA_TEMPORAL_INF = [
+  ...[...DIENTES_TEMPORALES.infDerecho].reverse(),
+  ...[...DIENTES_TEMPORALES.infIzquierdo].reverse(),
+]
 
 export interface EstadoDienteDef {
   value: EstadoDiente
