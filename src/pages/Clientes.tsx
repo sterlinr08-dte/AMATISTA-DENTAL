@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Pencil, Trash2, IdCard } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Cliente } from '../types'
 import { fechaCorta, conPrefijo } from '../lib/format'
@@ -21,10 +22,14 @@ const vacio = {
   contacto_emergencia: '',
   telefono_emergencia: '',
   seguro_ars: '',
+  ocupacion: '',
+  referido_por: '',
+  estado_civil: '',
   notas: '',
 }
 
 export default function Clientes() {
+  const navigate = useNavigate()
   const { puedeAccion } = useAuth()
   const { negocio } = useNegocio()
   const puedeEliminar = puedeAccion('clientes.eliminar')
@@ -66,6 +71,9 @@ export default function Clientes() {
       contacto_emergencia: c.contacto_emergencia ?? '',
       telefono_emergencia: c.telefono_emergencia ?? '',
       seguro_ars: c.seguro_ars ?? '',
+      ocupacion: c.ocupacion ?? '',
+      referido_por: c.referido_por ?? '',
+      estado_civil: c.estado_civil ?? '',
       notas: c.notas ?? '',
     })
     setOpen(true)
@@ -85,6 +93,9 @@ export default function Clientes() {
       contacto_emergencia: form.contacto_emergencia || null,
       telefono_emergencia: form.telefono_emergencia || null,
       seguro_ars: form.seguro_ars || null,
+      ocupacion: form.ocupacion || null,
+      referido_por: form.referido_por || null,
+      estado_civil: form.estado_civil || null,
       notas: form.notas || null,
     }
     const { error } = editId
@@ -121,6 +132,7 @@ export default function Clientes() {
         <DataTable
           rows={items}
           rowKey={(c) => c.id}
+          onRowClick={(c) => navigate('/ficha/' + c.id)}
           searchText={(c) => `${conPrefijo(negocio.prefijo_cliente, c.codigo)} ${c.nombre} ${c.telefono ?? ''} ${c.email ?? ''}`}
           searchPlaceholder="Buscar por código, nombre, teléfono o email…"
           emptyText={items.length === 0 ? 'Aún no hay clientes.' : 'No hay clientes que coincidan.'}
@@ -133,11 +145,14 @@ export default function Clientes() {
             {
               header: '', align: 'right', cell: (c) => (
                 <div className="flex justify-end gap-1">
-                  <button onClick={() => abrirEditar(c)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-brand-600">
+                  <button onClick={(e) => { e.stopPropagation(); navigate('/ficha/' + c.id) }} className="rounded-lg p-2 text-slate-600 hover:bg-amber-50 hover:text-amber-600" title="Abrir ficha">
+                    <IdCard size={16} />
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); abrirEditar(c) }} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-brand-600" title="Editar">
                     <Pencil size={16} />
                   </button>
                   {puedeEliminar && (
-                    <button onClick={() => eliminar(c)} className="rounded-lg p-2 text-slate-600 hover:bg-rose-50 hover:text-rose-600">
+                    <button onClick={(e) => { e.stopPropagation(); eliminar(c) }} className="rounded-lg p-2 text-slate-600 hover:bg-rose-50 hover:text-rose-600" title="Eliminar">
                       <Trash2 size={16} />
                     </button>
                   )}
@@ -215,9 +230,33 @@ export default function Clientes() {
             </div>
           </div>
 
-          <div>
-            <label className="label">Seguro / ARS</label>
-            <input className="input" value={form.seguro_ars} onChange={(e) => setForm({ ...form, seguro_ars: e.target.value })} placeholder="Ej. ARS Humano, Senasa…" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Seguro / ARS</label>
+              <input className="input" value={form.seguro_ars} onChange={(e) => setForm({ ...form, seguro_ars: e.target.value })} placeholder="Ej. ARS Humano, Senasa…" />
+            </div>
+            <div>
+              <label className="label">Estado civil</label>
+              <select className="input" value={form.estado_civil} onChange={(e) => setForm({ ...form, estado_civil: e.target.value })}>
+                <option value="">—</option>
+                <option value="Soltero/a">Soltero/a</option>
+                <option value="Casado/a">Casado/a</option>
+                <option value="Unión libre">Unión libre</option>
+                <option value="Divorciado/a">Divorciado/a</option>
+                <option value="Viudo/a">Viudo/a</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Ocupación</label>
+              <input className="input" value={form.ocupacion} onChange={(e) => setForm({ ...form, ocupacion: e.target.value })} placeholder="Ej. Docente, comerciante…" />
+            </div>
+            <div>
+              <label className="label">Referido por</label>
+              <input className="input" value={form.referido_por} onChange={(e) => setForm({ ...form, referido_por: e.target.value })} placeholder="¿Quién lo recomendó?" />
+            </div>
           </div>
 
           <div>

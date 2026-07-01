@@ -101,6 +101,7 @@ export default function App() {
               <Route path="/citas" element={<Protegido modulo="citas"><Citas /></Protegido>} />
               <Route path="/clientes" element={<Protegido modulo="clientes"><Clientes /></Protegido>} />
               <Route path="/ficha" element={<Protegido modulo="ficha"><FichaPaciente /></Protegido>} />
+              <Route path="/ficha/:id" element={<Protegido modulo="ficha"><FichaPaciente /></Protegido>} />
               <Route path="/odontograma" element={<Protegido modulo="odontograma"><Odontograma /></Protegido>} />
               <Route path="/historia" element={<Protegido modulo="historia"><HistoriaClinica /></Protegido>} />
               <Route path="/presupuestos" element={<Protegido modulo="presupuestos"><Presupuestos /></Protegido>} />

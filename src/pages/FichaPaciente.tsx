@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import {
   User, Camera, Pencil, CalendarPlus, FileText, Receipt, AlertTriangle,
   HeartPulse, Pill, Baby, Cigarette, Wallet, Bell, ExternalLink,
@@ -60,8 +60,9 @@ const TABS: { key: TabKey; label: string }[] = [
 ]
 
 export default function FichaPaciente() {
+  const { id: idRuta } = useParams()
   const [clientes, setClientes] = useState<Cliente[]>([])
-  const [pacienteId, setPacienteId] = useState('')
+  const [pacienteId, setPacienteId] = useState(idRuta ?? '')
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [historia, setHistoria] = useState<Historia | null>(null)
   const [alertas, setAlertas] = useState<{ id: string; texto: string }[]>([])
@@ -102,6 +103,11 @@ export default function FichaPaciente() {
     cargarPaciente(pacienteId)
     setTab('datos')
   }, [pacienteId])
+
+  // Si se llega por enlace directo (/ficha/:id), sincroniza el paciente.
+  useEffect(() => {
+    if (idRuta) setPacienteId(idRuta)
+  }, [idRuta])
 
   async function subirFoto(file: File) {
     if (!cliente) return
