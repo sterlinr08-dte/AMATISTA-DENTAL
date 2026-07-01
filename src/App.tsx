@@ -22,7 +22,6 @@ import Nomina from './pages/Nomina'
 import Contabilidad from './pages/Contabilidad'
 import Reportes from './pages/Reportes'
 import Configuracion from './pages/Configuracion'
-import Login from './pages/Login'
 import Cargando from './components/Cargando'
 import { useAuth } from './lib/auth'
 import { MODULOS } from './lib/permisos'
@@ -61,7 +60,14 @@ export default function App() {
   }
 
   if (!session) {
-    return <Login />
+    // Entrada unificada por el portal central: si no hay sesión, se envía a NEXUS
+    // (nexusprord.com) para iniciar con "usuario@amatista". No hay login propio.
+    window.location.replace('https://nexusprord.com')
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Cargando texto="Redirigiendo al portal…" />
+      </div>
+    )
   }
 
   return (
