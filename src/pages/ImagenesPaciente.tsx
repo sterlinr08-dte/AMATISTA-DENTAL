@@ -32,9 +32,9 @@ const etiquetaTipo: Record<TipoImagen, string> = {
   documento: 'Documento',
 }
 
-export default function ImagenesPaciente() {
+export default function ImagenesPaciente({ pacienteFijo }: { pacienteFijo?: string } = {}) {
   const [clientes, setClientes] = useState<Cliente[]>([])
-  const [pacienteId, setPacienteId] = useState<string>('')
+  const [pacienteId, setPacienteId] = useState<string>(pacienteFijo ?? '')
 
   const [imagenes, setImagenes] = useState<ImagenPaciente[]>([])
   const [urls, setUrls] = useState<Record<string, string>>({})
@@ -54,6 +54,10 @@ export default function ImagenesPaciente() {
     }
     inicial()
   }, [])
+
+  useEffect(() => {
+    if (pacienteFijo != null) setPacienteId(pacienteFijo)
+  }, [pacienteFijo])
 
   async function cargarGaleria(pid: string) {
     setCargandoGaleria(true)
@@ -146,12 +150,15 @@ export default function ImagenesPaciente() {
 
   return (
     <div>
-      <PageHeader title="Imágenes / Radiografías" subtitle="Galería de imágenes y documentos del paciente" />
-
-      <div className="card mb-6 max-w-md">
-        <label className="label">Paciente</label>
-        <SelectorPaciente clientes={clientes} value={pacienteId} onChange={setPacienteId} />
-      </div>
+      {!pacienteFijo && (
+        <>
+          <PageHeader title="Imágenes / Radiografías" subtitle="Galería de imágenes y documentos del paciente" />
+          <div className="card mb-6 max-w-md">
+            <label className="label">Paciente</label>
+            <SelectorPaciente clientes={clientes} value={pacienteId} onChange={setPacienteId} />
+          </div>
+        </>
+      )}
 
       {!pacienteId ? (
         <div className="card flex flex-col items-center gap-3 py-12 text-center">

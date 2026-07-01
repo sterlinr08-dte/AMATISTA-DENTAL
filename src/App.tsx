@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import Citas from './pages/Citas'
 import Clientes from './pages/Clientes'
+import FichaPaciente from './pages/FichaPaciente'
 import Odontograma from './pages/Odontograma'
 import HistoriaClinica from './pages/HistoriaClinica'
 import Presupuestos from './pages/Presupuestos'
@@ -99,6 +100,7 @@ export default function App() {
               <Route path="/" element={<Protegido modulo="panel"><Dashboard /></Protegido>} />
               <Route path="/citas" element={<Protegido modulo="citas"><Citas /></Protegido>} />
               <Route path="/clientes" element={<Protegido modulo="clientes"><Clientes /></Protegido>} />
+              <Route path="/ficha" element={<Protegido modulo="ficha"><FichaPaciente /></Protegido>} />
               <Route path="/odontograma" element={<Protegido modulo="odontograma"><Odontograma /></Protegido>} />
               <Route path="/historia" element={<Protegido modulo="historia"><HistoriaClinica /></Protegido>} />
               <Route path="/presupuestos" element={<Protegido modulo="presupuestos"><Presupuestos /></Protegido>} />

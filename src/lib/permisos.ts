@@ -10,6 +10,7 @@ export const MODULOS: Modulo[] = [
   { key: 'panel', label: 'Panel', path: '/' },
   { key: 'citas', label: 'Citas / Agenda', path: '/citas' },
   { key: 'clientes', label: 'Pacientes', path: '/clientes' },
+  { key: 'ficha', label: 'Ficha del paciente', path: '/ficha' },
   { key: 'odontograma', label: 'Odontograma', path: '/odontograma' },
   { key: 'historia', label: 'Historia clínica', path: '/historia' },
   { key: 'presupuestos', label: 'Presupuestos', path: '/presupuestos' },

@@ -43,6 +43,10 @@ export interface Cliente {
   contacto_emergencia: string | null
   telefono_emergencia: string | null
   seguro_ars: string | null
+  foto_url: string | null
+  ocupacion: string | null
+  referido_por: string | null
+  estado_civil: string | null
   notas: string | null
   created_at: string
   updated_at: string

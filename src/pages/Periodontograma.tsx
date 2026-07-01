@@ -52,9 +52,9 @@ function strAnum(v: string): number | null {
   return Number.isNaN(n) ? null : n
 }
 
-export default function Periodontograma() {
+export default function Periodontograma({ pacienteFijo }: { pacienteFijo?: string } = {}) {
   const [clientes, setClientes] = useState<Cliente[]>([])
-  const [pacienteId, setPacienteId] = useState<string>('')
+  const [pacienteId, setPacienteId] = useState<string>(pacienteFijo ?? '')
   const [fecha, setFecha] = useState<string>(hoyISO())
   const [registros, setRegistros] = useState<MarcaPeriodontal[]>([])
   const [loading, setLoading] = useState(true)
@@ -94,6 +94,10 @@ export default function Periodontograma() {
   useEffect(() => {
     cargarBase()
   }, [])
+
+  useEffect(() => {
+    if (pacienteFijo != null) setPacienteId(pacienteFijo)
+  }, [pacienteFijo])
 
   useEffect(() => {
     cargarRegistros(pacienteId, fecha)
@@ -309,13 +313,17 @@ export default function Periodontograma() {
 
   return (
     <div>
-      <PageHeader title="Periodontograma" subtitle="Carta periodontal por paciente y fecha" />
+      {!pacienteFijo && (
+        <PageHeader title="Periodontograma" subtitle="Carta periodontal por paciente y fecha" />
+      )}
 
       <div className="mb-6 flex flex-wrap gap-4">
-        <div className="min-w-[16rem] flex-1">
-          <label className="label">Paciente</label>
-          <SelectorPaciente clientes={clientes} value={pacienteId} onChange={setPacienteId} />
-        </div>
+        {!pacienteFijo && (
+          <div className="min-w-[16rem] flex-1">
+            <label className="label">Paciente</label>
+            <SelectorPaciente clientes={clientes} value={pacienteId} onChange={setPacienteId} />
+          </div>
+        )}
         <div className="w-56">
           <label className="label">Fecha del examen</label>
           <input type="date" className="input" value={fecha} onChange={(e) => setFecha(e.target.value)} />

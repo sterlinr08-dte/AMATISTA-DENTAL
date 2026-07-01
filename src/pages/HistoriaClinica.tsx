@@ -31,10 +31,10 @@ const evolucionVacia = {
   notas: '',
 }
 
-export default function HistoriaClinica() {
+export default function HistoriaClinica({ pacienteFijo }: { pacienteFijo?: string } = {}) {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [empleados, setEmpleados] = useState<Empleado[]>([])
-  const [pacienteId, setPacienteId] = useState<string>('')
+  const [pacienteId, setPacienteId] = useState<string>(pacienteFijo ?? '')
 
   const [cargandoFicha, setCargandoFicha] = useState(false)
   const [ficha, setFicha] = useState(fichaVacia)
@@ -61,6 +61,10 @@ export default function HistoriaClinica() {
     }
     inicial()
   }, [])
+
+  useEffect(() => {
+    if (pacienteFijo != null) setPacienteId(pacienteFijo)
+  }, [pacienteFijo])
 
   async function cargarFicha(pid: string) {
     setCargandoFicha(true)
@@ -192,12 +196,15 @@ export default function HistoriaClinica() {
 
   return (
     <div>
-      <PageHeader title="Historia clínica" subtitle="Ficha clínica y evoluciones del paciente" />
-
-      <div className="card mb-6 max-w-md">
-        <label className="label">Paciente</label>
-        <SelectorPaciente clientes={clientes} value={pacienteId} onChange={setPacienteId} />
-      </div>
+      {!pacienteFijo && (
+        <>
+          <PageHeader title="Historia clínica" subtitle="Ficha clínica y evoluciones del paciente" />
+          <div className="card mb-6 max-w-md">
+            <label className="label">Paciente</label>
+            <SelectorPaciente clientes={clientes} value={pacienteId} onChange={setPacienteId} />
+          </div>
+        </>
+      )}
 
       {!pacienteId ? (
         <div className="card flex flex-col items-center gap-3 py-12 text-center">

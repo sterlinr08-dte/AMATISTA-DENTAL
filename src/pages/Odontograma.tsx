@@ -52,10 +52,10 @@ const formVacio = {
   notas: '',
 }
 
-export default function Odontograma() {
+export default function Odontograma({ pacienteFijo }: { pacienteFijo?: string } = {}) {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [servicios, setServicios] = useState<Servicio[]>([])
-  const [pacienteId, setPacienteId] = useState<string>('')
+  const [pacienteId, setPacienteId] = useState<string>(pacienteFijo ?? '')
   const [marcas, setMarcas] = useState<MarcaOdontograma[]>([])
   const [denticion, setDenticion] = useState<Denticion>('permanente')
   const [loading, setLoading] = useState(true)
@@ -96,6 +96,10 @@ export default function Odontograma() {
   useEffect(() => {
     cargarBase()
   }, [])
+
+  useEffect(() => {
+    if (pacienteFijo != null) setPacienteId(pacienteFijo)
+  }, [pacienteFijo])
 
   useEffect(() => {
     cargarMarcas(pacienteId)
@@ -292,12 +296,15 @@ export default function Odontograma() {
 
   return (
     <div>
-      <PageHeader title="Odontograma" subtitle="Mapa dental por paciente" />
-
-      <div className="mb-6 max-w-md">
-        <label className="label">Paciente</label>
-        <SelectorPaciente clientes={clientes} value={pacienteId} onChange={setPacienteId} />
-      </div>
+      {!pacienteFijo && (
+        <>
+          <PageHeader title="Odontograma" subtitle="Mapa dental por paciente" />
+          <div className="mb-6 max-w-md">
+            <label className="label">Paciente</label>
+            <SelectorPaciente clientes={clientes} value={pacienteId} onChange={setPacienteId} />
+          </div>
+        </>
+      )}
 
       {!paciente ? (
         <div className="card flex flex-col items-center gap-3 py-12 text-center">
