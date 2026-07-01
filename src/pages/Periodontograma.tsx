@@ -22,6 +22,7 @@ interface FormPeriodontal {
   movilidad: string
   furca: string
   sangrado: boolean
+  supuracion: boolean
   placa: boolean
   notas: string
 }
@@ -33,6 +34,7 @@ const formVacio: FormPeriodontal = {
   movilidad: '0',
   furca: '0',
   sangrado: false,
+  supuracion: false,
   placa: false,
   notas: '',
 }
@@ -113,6 +115,7 @@ export default function Periodontograma() {
         movilidad: numAstr(r.movilidad) || '0',
         furca: numAstr(r.furca) || '0',
         sangrado: r.sangrado,
+        supuracion: r.supuracion,
         placa: r.placa,
         notas: r.notas ?? '',
       })
@@ -135,6 +138,7 @@ export default function Periodontograma() {
       movilidad: strAnum(form.movilidad),
       furca: strAnum(form.furca),
       sangrado: form.sangrado,
+      supuracion: form.supuracion,
       placa: form.placa,
       notas: form.notas.trim() || null,
     }
@@ -185,6 +189,31 @@ export default function Periodontograma() {
     return '#34d399'
   }
 
+  // NIC (Nivel de Inserción Clínica) de un lado = mayor sondaje del lado + recesión.
+  function nicLado(sitios: (number | null)[], rec: number | null): number | null {
+    const p = sitios.filter((x): x is number => x != null)
+    if (!p.length) return null
+    return Math.max(...p) + (rec ?? 0)
+  }
+  function nicMax(r: MarcaPeriodontal | undefined): number | null {
+    if (!r) return null
+    const v = nicLado([r.ps_vm, r.ps_vc, r.ps_vd], r.rec_v)
+    const l = nicLado([r.ps_lm, r.ps_lc, r.ps_ld], r.rec_l)
+    const vals = [v, l].filter((x): x is number => x != null)
+    return vals.length ? Math.max(...vals) : null
+  }
+
+  // Índices del examen (sobre las piezas registradas en la fecha).
+  const nReg = registros.length
+  const pct = (k: number) => (nReg ? Math.round((100 * k) / nReg) : 0)
+  const idxSangrado = pct(registros.filter((r) => r.sangrado).length)
+  const idxPlaca = pct(registros.filter((r) => r.placa).length)
+  const idxSupur = pct(registros.filter((r) => r.supuracion).length)
+  const todosPS = registros.flatMap((r) =>
+    [r.ps_vm, r.ps_vc, r.ps_vd, r.ps_lm, r.ps_lc, r.ps_ld].filter((x): x is number => x != null),
+  )
+  const promPS = todosPS.length ? (todosPS.reduce((a, b) => a + b, 0) / todosPS.length).toFixed(1) : '–'
+
   // Trío de profundidades de sondaje (mesial–central–distal) de una cara.
   function TrioPS({ vals }: { vals: (number | null)[] }) {
     return (
@@ -227,6 +256,12 @@ export default function Periodontograma() {
             <span
               className="absolute -right-0.5 top-0 h-2.5 w-2.5 rounded-full border border-white bg-rose-500"
               title="Sangrado al sondaje"
+            />
+          )}
+          {r?.supuracion && (
+            <span
+              className="absolute -left-0.5 top-0 h-2.5 w-2.5 rounded-full border border-white bg-yellow-400"
+              title="Supuración"
             />
           )}
         </span>
@@ -321,6 +356,22 @@ export default function Periodontograma() {
             )}
           </div>
 
+          {/* Índices del examen */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            {[
+              { label: 'Piezas registradas', val: String(nReg), tono: 'text-slate-700' },
+              { label: 'Índice de sangrado', val: `${idxSangrado}%`, tono: idxSangrado >= 20 ? 'text-rose-600' : 'text-emerald-600' },
+              { label: 'Índice de placa', val: `${idxPlaca}%`, tono: idxPlaca >= 20 ? 'text-rose-600' : 'text-emerald-600' },
+              { label: 'Supuración', val: `${idxSupur}%`, tono: idxSupur > 0 ? 'text-amber-600' : 'text-emerald-600' },
+              { label: 'Sondaje promedio', val: `${promPS} mm`, tono: 'text-slate-700' },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-center shadow-sm">
+                <p className={`text-xl font-bold ${s.tono}`}>{s.val}</p>
+                <p className="mt-0.5 text-[11px] font-medium text-slate-500">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
           {/* Leyenda */}
           <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-600">
             <span className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1">
@@ -334,6 +385,9 @@ export default function Periodontograma() {
             </span>
             <span className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1">
               <span className="h-2 w-2 rounded-full bg-rose-500" /> Sangrado al sondaje
+            </span>
+            <span className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1">
+              <span className="h-2 w-2 rounded-full bg-yellow-400" /> Supuración
             </span>
             <span className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1">
               <span className="font-mono text-sky-600">↕</span> Recesión (mm)
@@ -352,6 +406,7 @@ export default function Periodontograma() {
                   <th className="px-5 py-3 text-left">Diente</th>
                   <th className="px-5 py-3 text-left">Prof. sondaje (mm)</th>
                   <th className="px-5 py-3 text-left">Recesión (V/L)</th>
+                  <th className="px-5 py-3 text-left">NIC (mm)</th>
                   <th className="px-5 py-3 text-left">Movilidad</th>
                   <th className="px-5 py-3 text-left">Sangrado</th>
                   <th className="px-5 py-3"></th>
@@ -360,7 +415,7 @@ export default function Periodontograma() {
               <tbody className="divide-y divide-slate-50">
                 {registros.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center text-slate-500">
+                    <td colSpan={7} className="px-5 py-8 text-center text-slate-500">
                       Sin registros periodontales para esta fecha.
                     </td>
                   </tr>
@@ -374,6 +429,7 @@ export default function Periodontograma() {
                         <td className="px-5 py-3 text-slate-600">
                           {r.rec_v ?? '–'} / {r.rec_l ?? '–'}
                         </td>
+                        <td className="px-5 py-3 font-mono font-semibold text-sky-700">{nicMax(r) ?? '–'}</td>
                         <td className="px-5 py-3 text-slate-600">{r.movilidad ?? '–'}</td>
                         <td className="px-5 py-3 text-slate-600">{r.sangrado ? 'Sí' : 'No'}</td>
                         <td className="px-5 py-3">
@@ -484,6 +540,20 @@ export default function Periodontograma() {
             </div>
           </div>
 
+          {/* NIC (Nivel de Inserción Clínica) calculado automáticamente = sondaje + recesión */}
+          {(() => {
+            const nv = nicLado([strAnum(form.ps_vm), strAnum(form.ps_vc), strAnum(form.ps_vd)], strAnum(form.rec_v))
+            const nl = nicLado([strAnum(form.ps_lm), strAnum(form.ps_lc), strAnum(form.ps_ld)], strAnum(form.rec_l))
+            return (
+              <div className="flex items-center gap-4 rounded-lg border border-sky-100 bg-sky-50/60 px-4 py-2.5 text-sm">
+                <span className="font-semibold text-sky-800">NIC (automático)</span>
+                <span className="text-slate-600">Vestibular: <b className="font-mono">{nv ?? '–'}</b> mm</span>
+                <span className="text-slate-600">Palatino/Lingual: <b className="font-mono">{nl ?? '–'}</b> mm</span>
+                <span className="text-[11px] text-slate-400">= sondaje + recesión</span>
+              </div>
+            )
+          })()}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Movilidad</label>
@@ -524,6 +594,15 @@ export default function Periodontograma() {
                 onChange={(e) => setForm({ ...form, sangrado: e.target.checked })}
               />
               Sangrado al sondaje
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-400"
+                checked={form.supuracion}
+                onChange={(e) => setForm({ ...form, supuracion: e.target.checked })}
+              />
+              Supuración
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input

@@ -308,6 +308,11 @@ export type EstadoDiente =
   | 'sano' | 'caries' | 'obturado' | 'ausente' | 'corona' | 'implante'
   | 'endodoncia' | 'fractura' | 'sellante' | 'extraccion_indicada'
   | 'protesis' | 'puente' | 'movilidad'
+  | 'resto_radicular' | 'corona_temporal' | 'protesis_removible'
+  | 'protesis_total' | 'giroversion' | 'diastema' | 'supernumerario'
+
+// Condición de la marca: por hacer (rojo, requerido) o realizado (azul, hecho).
+export type CondicionMarca = 'por_hacer' | 'realizado'
 
 // Una marca del odontograma (estado de una pieza o cara concreta del paciente)
 export interface MarcaOdontograma {
@@ -316,6 +321,8 @@ export interface MarcaOdontograma {
   diente: number
   cara: string | null
   estado: EstadoDiente
+  // Condición: 'por_hacer' (rojo) o 'realizado' (azul). Null en hallazgos neutros.
+  condicion: CondicionMarca | null
   // Clasificación de Black de la lesión/restauración (1=I … 6=VI). Null si no aplica.
   clase_black: number | null
   tratamiento_id: string | null
@@ -404,6 +411,7 @@ export interface MarcaPeriodontal {
   movilidad: number | null
   furca: number | null
   sangrado: boolean
+  supuracion: boolean
   placa: boolean
   notas: string | null
   created_at: string

@@ -34,6 +34,8 @@ interface DienteSVGProps {
   colorPieza?: string
   /** Estado clínico: 'ausente' dibuja X, 'implante' dibuja tornillo. */
   estado?: string
+  /** Signo clínico corto a dibujar sobre la corona (ej. 'E', 'IMP', 'RR'). */
+  sigla?: string
   /** Tamaño (px). Por defecto ~40. */
   size?: number
 }
@@ -95,7 +97,7 @@ function formaPorTipo(tipo: TipoDiente): FormaDiente {
   }
 }
 
-export default function DienteSVG({ fdi, arriba, colorPieza, estado, size = 40 }: DienteSVGProps) {
+export default function DienteSVG({ fdi, arriba, colorPieza, estado, sigla, size = 40 }: DienteSVGProps) {
   const tipo = tipoPorFdi(fdi)
 
   // Si hay foto hiperrealista para este tipo de pieza, se renderiza la foto.
@@ -107,6 +109,7 @@ export default function DienteSVG({ fdi, arriba, colorPieza, estado, size = 40 }
         arriba={arriba}
         colorPieza={colorPieza}
         estado={estado}
+        sigla={sigla}
         size={size}
       />
     )
@@ -235,12 +238,14 @@ function DienteFoto({
   arriba,
   colorPieza,
   estado,
+  sigla,
   size,
 }: {
   src: string
   arriba: boolean
   colorPieza?: string
   estado?: string
+  sigla?: string
   size: number
 }) {
   const ausente = estado === 'ausente'
@@ -285,10 +290,24 @@ function DienteFoto({
         />
       )}
 
+      {/* Signo clínico (sigla) centrado sobre la corona, en el color de la condición. */}
+      {sigla && !ausente && (
+        <span
+          className="pointer-events-none absolute inset-0 flex items-center justify-center font-bold leading-none"
+          style={{
+            color: colorPieza ?? '#334155',
+            fontSize: Math.max(9, size * 0.34),
+            textShadow: '0 0 2px #fff, 0 0 2px #fff, 0 1px 1px #fff',
+          }}
+        >
+          {sigla}
+        </span>
+      )}
+
       {/* Ausente: X roja. */}
       {ausente && (
         <svg viewBox="0 0 40 52" className="absolute inset-0 h-full w-full">
-          <g stroke="#dc2626" strokeWidth={3.4} strokeLinecap="round" opacity={0.9}>
+          <g stroke="#6b7280" strokeWidth={3.4} strokeLinecap="round" opacity={0.9}>
             <line x1="9" y1="9" x2="31" y2="43" />
             <line x1="31" y1="9" x2="9" y2="43" />
           </g>

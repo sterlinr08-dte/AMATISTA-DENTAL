@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Trash2, Save, User } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { Cliente, Servicio, MarcaOdontograma, EstadoDiente } from '../types'
+import { Cliente, Servicio, MarcaOdontograma, EstadoDiente, CondicionMarca } from '../types'
 import { codigoCliente } from '../lib/format'
 import {
   ARCADA_PERMANENTE_SUP,
@@ -12,6 +12,12 @@ import {
   estadoDienteDef,
   CLASES_BLACK,
   claseBlackDef,
+  colorMarca,
+  condicionPorDefecto,
+  condicionEditable,
+  condicionLabel,
+  COLOR_POR_HACER,
+  COLOR_REALIZADO,
 } from '../lib/dental'
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
@@ -41,6 +47,7 @@ type Objetivo = { diente: number; cara: CaraValor | null }
 
 const formVacio = {
   estado: 'sano' as EstadoDiente,
+  condicion: '' as CondicionMarca | '',
   clase_black: '',
   tratamiento_id: '',
   notas: '',
@@ -114,8 +121,10 @@ export default function Odontograma() {
   function abrir(obj: Objetivo) {
     setObjetivo(obj)
     const existente = obj.cara ? marcaCara(obj.diente, obj.cara) : marcaPieza(obj.diente)
+    const estadoIni = existente?.estado ?? 'sano'
     setForm({
-      estado: existente?.estado ?? 'sano',
+      estado: estadoIni,
+      condicion: existente?.condicion ?? condicionPorDefecto(estadoIni) ?? '',
       clase_black: existente?.clase_black != null ? String(existente.clase_black) : '',
       tratamiento_id: existente?.tratamiento_id ?? '',
       notas: existente?.notas ?? '',
@@ -123,11 +132,17 @@ export default function Odontograma() {
     setOpen(true)
   }
 
+  // Al cambiar el estado, ajusta la condición por defecto (rojo/azul) de ese estado.
+  function cambiarEstado(estado: EstadoDiente) {
+    setForm((f) => ({ ...f, estado, condicion: condicionPorDefecto(estado) ?? '' }))
+  }
+
   async function guardar() {
     if (!objetivo) return
     setSaving(true)
     const base = {
       estado: form.estado,
+      condicion: form.condicion || condicionPorDefecto(form.estado),
       clase_black: form.clase_black ? Number(form.clase_black) : null,
       tratamiento_id: form.tratamiento_id || null,
       notas: form.notas || null,
@@ -192,18 +207,22 @@ export default function Odontograma() {
   function DienteBoton({ n, arriba }: { n: number; arriba: boolean }) {
     const pieza = marcaPieza(n)
     const def = pieza ? estadoDienteDef(pieza.estado) : null
+    const titulo = pieza && def
+      ? `${def.label} · ${condicionLabel(pieza.condicion)} — clic para pieza completa`
+      : 'Pieza completa'
     return (
       <button
         type="button"
         onClick={() => abrir({ diente: n, cara: null })}
-        title={def ? `${def.label} — clic para pieza completa` : 'Pieza completa'}
+        title={titulo}
         className="rounded-lg p-0.5 transition hover:ring-2 hover:ring-brand-300"
       >
         <DienteSVG
           fdi={n}
           arriba={arriba}
-          colorPieza={def ? def.color : undefined}
+          colorPieza={pieza ? colorMarca(pieza.estado, pieza.condicion) : undefined}
           estado={pieza?.estado}
+          sigla={def && def.grupo !== 'sano' && def.grupo !== 'ausente' ? def.sigla : undefined}
           size={34}
         />
       </button>
@@ -224,8 +243,10 @@ export default function Odontograma() {
       <svg width="34" height="34" viewBox="0 0 34 34">
         {zonas.map((z) => {
           const m = marcaCara(n, z.cara)
-          const fill = m ? estadoDienteDef(m.estado).color : '#ffffff'
-          const title = m ? `${z.label}: ${estadoDienteDef(m.estado).label}` : z.label
+          const fill = m ? (colorMarca(m.estado, m.condicion) ?? '#ffffff') : '#ffffff'
+          const title = m
+            ? `${z.label}: ${estadoDienteDef(m.estado).label} (${condicionLabel(m.condicion)})`
+            : z.label
           const common = {
             fill,
             stroke: '#94a3b8',
@@ -335,14 +356,32 @@ export default function Odontograma() {
             </p>
           </div>
 
-          {/* Leyenda de estados */}
+          {/* Regla de color: rojo = por hacer, azul = realizado */}
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-2.5 text-sm">
+            <span className="flex items-center gap-1.5 font-semibold" style={{ color: COLOR_POR_HACER }}>
+              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: COLOR_POR_HACER }} />
+              Rojo = por hacer (requerido)
+            </span>
+            <span className="flex items-center gap-1.5 font-semibold" style={{ color: COLOR_REALIZADO }}>
+              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: COLOR_REALIZADO }} />
+              Azul = realizado (hecho)
+            </span>
+            <span className="text-xs text-slate-500">· Cada hallazgo lleva su signo (sigla) sobre el diente.</span>
+          </div>
+
+          {/* Leyenda de signos (estados) */}
           <div className="flex flex-wrap gap-2">
-            {ESTADOS_DIENTE.map((e) => (
+            {ESTADOS_DIENTE.filter((e) => e.grupo !== 'sano').map((e) => (
               <span
                 key={e.value}
                 className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600"
               >
-                <span className="h-3 w-3 rounded-full border border-slate-300" style={{ backgroundColor: e.color }} />
+                <span
+                  className="flex h-4 min-w-4 items-center justify-center rounded px-0.5 text-[10px] font-bold text-white"
+                  style={{ backgroundColor: e.color }}
+                >
+                  {e.sigla || '•'}
+                </span>
                 {e.label}
               </span>
             ))}
@@ -371,6 +410,7 @@ export default function Odontograma() {
                   <th className="px-5 py-3 text-left">Diente</th>
                   <th className="px-5 py-3 text-left">Cara</th>
                   <th className="px-5 py-3 text-left">Estado</th>
+                  <th className="px-5 py-3 text-left">Condición</th>
                   <th className="px-5 py-3 text-left">Clase (Black)</th>
                   <th className="px-5 py-3 text-left">Notas</th>
                   <th className="px-5 py-3"></th>
@@ -379,7 +419,7 @@ export default function Odontograma() {
               <tbody className="divide-y divide-slate-50">
                 {marcas.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center text-slate-500">
+                    <td colSpan={7} className="px-5 py-8 text-center text-slate-500">
                       Sin marcas registradas para este paciente.
                     </td>
                   </tr>
@@ -395,11 +435,25 @@ export default function Odontograma() {
                           <td className="px-5 py-3">
                             <span className="inline-flex items-center gap-1.5 text-slate-700">
                               <span
-                                className="h-3 w-3 rounded-full border border-slate-300"
-                                style={{ backgroundColor: def.color }}
-                              />
+                                className="flex h-4 min-w-4 items-center justify-center rounded px-0.5 text-[10px] font-bold text-white"
+                                style={{ backgroundColor: colorMarca(m.estado, m.condicion) ?? '#cbd5e1' }}
+                              >
+                                {def.sigla || '•'}
+                              </span>
                               {def.label}
                             </span>
+                          </td>
+                          <td className="px-5 py-3">
+                            {def.grupo === 'sano' || def.grupo === 'ausente' ? (
+                              <span className="text-slate-400">—</span>
+                            ) : (
+                              <span
+                                className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+                                style={{ backgroundColor: colorMarca(m.estado, m.condicion) }}
+                              >
+                                {condicionLabel(m.condicion ?? condicionPorDefecto(m.estado))}
+                              </span>
+                            )}
                           </td>
                           <td className="px-5 py-3">
                             {claseBlackDef(m.clase_black) ? (
@@ -455,19 +509,57 @@ export default function Odontograma() {
       >
         <div className="space-y-4">
           <div>
-            <label className="label">Estado</label>
+            <label className="label">Estado / hallazgo</label>
             <select
               className="input"
               value={form.estado}
-              onChange={(e) => setForm({ ...form, estado: e.target.value as EstadoDiente })}
+              onChange={(e) => cambiarEstado(e.target.value as EstadoDiente)}
             >
               {ESTADOS_DIENTE.map((e) => (
                 <option key={e.value} value={e.value}>
-                  {e.label}
+                  {e.sigla ? `${e.sigla} · ${e.label}` : e.label}
                 </option>
               ))}
             </select>
           </div>
+
+          {/* Condición: rojo (por hacer) / azul (realizado) */}
+          {estadoDienteDef(form.estado).grupo !== 'sano' && estadoDienteDef(form.estado).grupo !== 'ausente' && (
+            <div>
+              <label className="label">Condición</label>
+              {condicionEditable(form.estado) ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {(['por_hacer', 'realizado'] as CondicionMarca[]).map((c) => {
+                    const activo = (form.condicion || condicionPorDefecto(form.estado)) === c
+                    const color = c === 'por_hacer' ? COLOR_POR_HACER : COLOR_REALIZADO
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setForm({ ...form, condicion: c })}
+                        className={`flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-semibold transition ${
+                          activo ? 'text-white' : 'bg-white text-slate-600'
+                        }`}
+                        style={activo ? { backgroundColor: color, borderColor: color } : { borderColor: '#e2e8f0' }}
+                      >
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: activo ? '#fff' : color }} />
+                        {condicionLabel(c)}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white"
+                  style={{ backgroundColor: COLOR_POR_HACER }}
+                >
+                  <span className="h-2.5 w-2.5 rounded-full bg-white" />
+                  Por hacer (hallazgo a tratar)
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="label">Clasificación de Black (opcional)</label>
             <select
