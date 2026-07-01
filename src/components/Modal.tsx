@@ -1,4 +1,5 @@
 import { ReactNode, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 interface ModalProps {
@@ -30,7 +31,11 @@ export default function Modal({ open, title, onClose, children, footer }: ModalP
   }, [open])
 
   if (!open) return null
-  return (
+
+  // Se renderiza con portal en <body> para que `position: fixed` se posicione
+  // respecto a la pantalla y NO respecto al contenido de fondo (que está
+  // desplazado con transform; un ancestro con transform rompería el fixed).
+  return createPortal(
     <div className="animate-modal-fondo fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
       <div className="animate-modal-panel w-full max-w-2xl rounded-2xl bg-white ring-1 ring-amber-100 shadow-[0_28px_60px_-18px_rgba(201,162,39,0.38)]">
         <div className="flex items-center justify-between border-b border-amber-100 px-5 py-4">
@@ -42,6 +47,7 @@ export default function Modal({ open, title, onClose, children, footer }: ModalP
         <div className="px-5 py-4">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
