@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardCheck, CheckCircle2, Circle } from 'lucide-react'
+import { ClipboardCheck, CheckCircle2, Circle, Ban } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Cliente, Presupuesto, PresupuestoItem, EstadoPresupuestoItem } from '../types'
 import { money, fechaCorta } from '../lib/format'
@@ -15,6 +15,7 @@ const ESTADOS_ITEM: { value: EstadoPresupuestoItem; label: string }[] = [
   { value: 'PENDIENTE', label: 'Pendiente' },
   { value: 'APROBADO', label: 'Aprobado' },
   { value: 'REALIZADO', label: 'Realizado' },
+  { value: 'CANCELADO', label: 'No se realizará' },
 ]
 
 // Código de plan: P + 4 dígitos
@@ -30,8 +31,10 @@ interface Avance {
 }
 
 function calcularAvance(items: PresupuestoItem[]): Avance {
-  const total = items.length
-  const realizados = items.filter((it) => it.estado === 'REALIZADO').length
+  // Los cancelados ("No se realizará") no cuentan para el avance.
+  const cuentan = items.filter((it) => it.estado !== 'CANCELADO')
+  const total = cuentan.length
+  const realizados = cuentan.filter((it) => it.estado === 'REALIZADO').length
   const pct = total === 0 ? 0 : Math.round((realizados / total) * 100)
   return { realizados, total, pct }
 }
@@ -72,7 +75,7 @@ export default function Seguimiento() {
       supabase
         .from('presupuestos')
         .select('*')
-        .in('estado', ['PRESENTADO', 'APROBADO', 'FACTURADO'])
+        .in('estado', ['BORRADOR', 'PRESENTADO', 'APROBADO', 'FACTURADO'])
         .order('codigo', { ascending: false }),
       supabase.from('clientes').select('*').order('nombre'),
     ])
@@ -199,18 +202,21 @@ export default function Seguimiento() {
                 <div className="space-y-2">
                   {itemsSel.map((it) => {
                     const realizado = it.estado === 'REALIZADO'
+                    const cancelado = it.estado === 'CANCELADO'
                     return (
-                      <div key={it.id} className="flex items-start gap-3 rounded-xl border-2 border-slate-200 bg-white p-3 shadow-sm">
+                      <div key={it.id} className={`flex items-start gap-3 rounded-xl border-2 p-3 shadow-sm ${cancelado ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
                         <div className="mt-0.5 shrink-0">
                           {realizado
                             ? <CheckCircle2 size={18} className="text-amber-500" />
-                            : <Circle size={18} className="text-slate-300" />}
+                            : cancelado
+                              ? <Ban size={18} className="text-slate-400" />
+                              : <Circle size={18} className="text-slate-300" />}
                         </div>
                         <div className="flex-1">
-                          <div className="text-sm font-medium text-slate-800">{it.descripcion}</div>
+                          <div className={`text-sm font-medium ${cancelado ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{it.descripcion}</div>
                           <div className="mt-0.5 text-xs text-slate-500">
                             {it.diente != null && <span className="mr-2">Diente {it.diente}</span>}
-                            <span>{money(it.precio_unit)}</span>
+                            <span className={cancelado ? 'line-through' : ''}>{money(it.precio_unit)}</span>
                           </div>
                         </div>
                         <select

@@ -227,14 +227,28 @@ export default function Presupuestos() {
     await cargar()
   }
 
-  // Convertir un presupuesto APROBADO en una factura de contado
+  // Convertir un presupuesto APROBADO en una factura de contado.
+  // Factura los tratamientos guardados del plan, EXCLUYENDO los cancelados
+  // ("No se realizará") y los que ya se facturaron por el panel por visita.
   async function convertirAFactura() {
     if (!editId) return
     if (estado !== 'APROBADO') return alert('Solo se puede facturar un presupuesto aprobado.')
-    const validos = itemsValidos()
-    if (validos.length === 0) return alert('El presupuesto no tiene tratamientos para facturar.')
-    if (!confirm('¿Crear una factura de contado con estos tratamientos?')) return
+
+    const { data: dbItems, error: eItems } = await supabase
+      .from('presupuesto_items')
+      .select('id, servicio_id, descripcion, cantidad, precio_unit, estado, facturado')
+      .eq('presupuesto_id', editId)
+    if (eItems) return alert('Error al leer los tratamientos: ' + eItems.message)
+    const aFacturar = (dbItems ?? []).filter((it: any) => it.estado !== 'CANCELADO' && !it.facturado)
+    if (aFacturar.length === 0) {
+      return alert('No hay tratamientos para facturar (todos están cancelados o ya facturados).')
+    }
+    if (!confirm(`¿Crear una factura de contado con ${aFacturar.length} tratamiento(s)?`)) return
     setConvirtiendo(true)
+
+    const sub = aFacturar.reduce((s: number, it: any) => s + Number(it.cantidad) * Number(it.precio_unit), 0)
+    const desc = Math.min(sub, Math.max(0, descuento))
+    const tot = Math.max(0, sub - desc)
 
     const { data: factura, error } = await supabase
       .from('facturas')
@@ -242,10 +256,10 @@ export default function Presupuestos() {
         cliente_id: clienteId || null,
         cliente_nombre: nombreCliente(clienteId),
         fecha: hoyISO(),
-        subtotal,
-        descuento: descuentoMonto,
+        subtotal: sub,
+        descuento: desc,
         itbis: 0,
-        total,
+        total: tot,
         estado: 'PENDIENTE',
         tipo_venta: 'CONTADO',
       })
@@ -257,19 +271,25 @@ export default function Presupuestos() {
     }
     const facturaId = (factura as { id: string }).id
 
-    const payload = validos.map((l) => ({
+    const payload = aFacturar.map((it: any) => ({
       factura_id: facturaId,
-      servicio_id: l.servicio_id || null,
-      descripcion: l.descripcion,
-      cantidad: l.cantidad,
-      precio_unit: l.precio_unit,
-      importe: l.cantidad * l.precio_unit,
+      servicio_id: it.servicio_id || null,
+      descripcion: it.descripcion,
+      cantidad: it.cantidad,
+      precio_unit: it.precio_unit,
+      importe: Number(it.cantidad) * Number(it.precio_unit),
     }))
     const { error: e2 } = await supabase.from('factura_items').insert(payload)
     if (e2) {
       setConvirtiendo(false)
       return alert('Factura creada pero falló el detalle: ' + e2.message)
     }
+
+    // Marcar esos tratamientos como facturados (para que el panel por visita no los reofrezca).
+    await supabase
+      .from('presupuesto_items')
+      .update({ facturado: true, factura_id: facturaId })
+      .in('id', aFacturar.map((it: any) => it.id))
 
     const { error: e3 } = await supabase
       .from('presupuestos')

@@ -362,7 +362,7 @@ export interface HistoriaEvolucion {
 }
 
 export type EstadoPresupuesto = 'BORRADOR' | 'PRESENTADO' | 'APROBADO' | 'RECHAZADO' | 'FACTURADO'
-export type EstadoPresupuestoItem = 'PENDIENTE' | 'APROBADO' | 'REALIZADO'
+export type EstadoPresupuestoItem = 'PENDIENTE' | 'APROBADO' | 'REALIZADO' | 'CANCELADO'
 
 export interface PresupuestoItem {
   id: string
