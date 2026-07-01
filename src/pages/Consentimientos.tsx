@@ -16,7 +16,7 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-export default function Consentimientos() {
+export default function Consentimientos({ pacienteFijo }: { pacienteFijo?: string } = {}) {
   const { negocio } = useNegocio()
 
   const [lista, setLista] = useState<Consentimiento[]>([])
@@ -43,8 +43,10 @@ export default function Consentimientos() {
 
   async function cargar() {
     setLoading(true)
+    let q = supabase.from('consentimientos').select('*').order('fecha', { ascending: false })
+    if (pacienteFijo) q = q.eq('cliente_id', pacienteFijo)
     const [{ data }, { data: cls }, { data: em }] = await Promise.all([
-      supabase.from('consentimientos').select('*').order('fecha', { ascending: false }),
+      q,
       supabase.from('clientes').select('*').order('nombre'),
       supabase.from('empleados').select('*').eq('activo', true).order('nombre'),
     ])
@@ -56,7 +58,8 @@ export default function Consentimientos() {
 
   useEffect(() => {
     cargar()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pacienteFijo])
 
   function nombreCliente(id: string | null): string {
     if (!id) return 'Sin paciente'
@@ -133,7 +136,7 @@ export default function Consentimientos() {
 
   function nuevo() {
     setEditId(null)
-    setClienteId('')
+    setClienteId(pacienteFijo ?? '')
     setEmpleadoId('')
     setFecha(hoyISO())
     setTipo('')
@@ -341,15 +344,24 @@ export default function Consentimientos() {
 
   return (
     <div>
-      <PageHeader
-        title="Consentimientos informados"
-        subtitle={`${lista.length} consentimiento(s)`}
-        action={
+      {pacienteFijo ? (
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-700">{lista.length} consentimiento(s)</h3>
           <button className="btn-primary" onClick={nuevo}>
             <Plus size={16} /> Nuevo consentimiento
           </button>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          title="Consentimientos informados"
+          subtitle={`${lista.length} consentimiento(s)`}
+          action={
+            <button className="btn-primary" onClick={nuevo}>
+              <Plus size={16} /> Nuevo consentimiento
+            </button>
+          }
+        />
+      )}
 
       {loading ? (
         <Cargando />
@@ -385,7 +397,11 @@ export default function Consentimientos() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Paciente</label>
-              <SelectorPaciente clientes={clientes} value={clienteId} onChange={setClienteId} />
+              {pacienteFijo ? (
+                <input className="input bg-slate-50" value={nombreCliente(clienteId)} readOnly />
+              ) : (
+                <SelectorPaciente clientes={clientes} value={clienteId} onChange={setClienteId} />
+              )}
             </div>
             <div>
               <label className="label">Profesional</label>

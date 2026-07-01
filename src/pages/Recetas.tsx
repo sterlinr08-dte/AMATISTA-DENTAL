@@ -35,7 +35,7 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
-export default function Recetas() {
+export default function Recetas({ pacienteFijo }: { pacienteFijo?: string } = {}) {
   const { negocio } = useNegocio()
 
   const [recetas, setRecetas] = useState<Receta[]>([])
@@ -55,8 +55,10 @@ export default function Recetas() {
 
   async function cargar() {
     setLoading(true)
+    let q = supabase.from('recetas').select('*').order('codigo', { ascending: false })
+    if (pacienteFijo) q = q.eq('cliente_id', pacienteFijo)
     const [{ data }, { data: cls }] = await Promise.all([
-      supabase.from('recetas').select('*').order('codigo', { ascending: false }),
+      q,
       supabase.from('clientes').select('*').order('nombre'),
     ])
     setRecetas(data ?? [])
@@ -72,7 +74,8 @@ export default function Recetas() {
   useEffect(() => {
     cargar()
     cargarCatalogos()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pacienteFijo])
 
   function nombreCliente(id: string | null): string {
     if (!id) return 'Sin paciente'
@@ -86,7 +89,7 @@ export default function Recetas() {
 
   function nuevo() {
     setEditId(null)
-    setClienteId('')
+    setClienteId(pacienteFijo ?? '')
     setEmpleadoId('')
     setFecha(hoyISO())
     setIndicaciones('')
@@ -375,15 +378,24 @@ export default function Recetas() {
 
   return (
     <div>
-      <PageHeader
-        title="Recetas"
-        subtitle={`${recetas.length} receta(s) médica(s)`}
-        action={
+      {pacienteFijo ? (
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-700">{recetas.length} receta(s) médica(s)</h3>
           <button className="btn-primary" onClick={nuevo}>
             <Plus size={16} /> Nueva receta
           </button>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          title="Recetas"
+          subtitle={`${recetas.length} receta(s) médica(s)`}
+          action={
+            <button className="btn-primary" onClick={nuevo}>
+              <Plus size={16} /> Nueva receta
+            </button>
+          }
+        />
+      )}
 
       {loading ? (
         <Cargando />
@@ -419,7 +431,11 @@ export default function Recetas() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Paciente</label>
-              <SelectorPaciente clientes={clientes} value={clienteId} onChange={setClienteId} />
+              {pacienteFijo ? (
+                <input className="input bg-slate-50" value={nombreCliente(clienteId)} readOnly />
+              ) : (
+                <SelectorPaciente clientes={clientes} value={clienteId} onChange={setClienteId} />
+              )}
             </div>
             <div>
               <label className="label">Doctor(a)</label>

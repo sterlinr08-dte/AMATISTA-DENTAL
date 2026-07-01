@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   User, Camera, Pencil, CalendarPlus, FileText, Receipt, AlertTriangle,
-  HeartPulse, Pill, Baby, Cigarette, Wallet, Bell, ExternalLink,
+  HeartPulse, Pill, Baby, Cigarette, Wallet, Bell,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Cliente } from '../types'
@@ -14,6 +14,10 @@ import HistoriaClinica from './HistoriaClinica'
 import Odontograma from './Odontograma'
 import Periodontograma from './Periodontograma'
 import ImagenesPaciente from './ImagenesPaciente'
+import Presupuestos from './Presupuestos'
+import Facturacion from './Facturacion'
+import Recetas from './Recetas'
+import Consentimientos from './Consentimientos'
 
 const BUCKET = 'pacientes'
 
@@ -226,10 +230,10 @@ export default function FichaPaciente() {
             {tab === 'odonto' && <Odontograma pacienteFijo={pacienteId} />}
             {tab === 'perio' && <Periodontograma pacienteFijo={pacienteId} />}
             {tab === 'imagenes' && <ImagenesPaciente pacienteFijo={pacienteId} />}
-            {tab === 'presupuestos' && <ListaSimple pacienteId={pacienteId} tabla="presupuestos" ruta="/presupuestos" titulo="Presupuestos" />}
-            {tab === 'facturacion' && <ListaSimple pacienteId={pacienteId} tabla="facturas" ruta="/facturacion" titulo="Facturas" saldo={saldo} />}
-            {tab === 'recetas' && <ListaSimple pacienteId={pacienteId} tabla="recetas" ruta="/recetas" titulo="Recetas" />}
-            {tab === 'consentimientos' && <ListaSimple pacienteId={pacienteId} tabla="consentimientos" ruta="/consentimientos" titulo="Consentimientos" />}
+            {tab === 'presupuestos' && <Presupuestos pacienteFijo={pacienteId} />}
+            {tab === 'facturacion' && <Facturacion pacienteFijo={pacienteId} />}
+            {tab === 'recetas' && <Recetas pacienteFijo={pacienteId} />}
+            {tab === 'consentimientos' && <Consentimientos pacienteFijo={pacienteId} />}
           </div>
         </div>
       )}
@@ -290,54 +294,3 @@ function TabDatos({ cliente, edad }: { cliente: Cliente; edad: number | null }) 
   )
 }
 
-// Lista de solo lectura por paciente (presupuestos, facturas, recetas, consentimientos).
-function ListaSimple({ pacienteId, tabla, ruta, titulo, saldo }: { pacienteId: string; tabla: string; ruta: string; titulo: string; saldo?: number }) {
-  const [rows, setRows] = useState<any[]>([])
-  const [cargando, setCargando] = useState(true)
-
-  useEffect(() => {
-    setCargando(true)
-    supabase.from(tabla).select('*').eq('cliente_id', pacienteId).order('created_at', { ascending: false })
-      .then(({ data }) => { setRows(data ?? []); setCargando(false) })
-  }, [pacienteId, tabla])
-
-  function tituloFila(r: any): string {
-    if (tabla === 'facturas') return `Factura #${r.numero ?? ''}`
-    if (tabla === 'presupuestos') return `Presupuesto P${String(r.codigo ?? 0).padStart(4, '0')}`
-    if (tabla === 'recetas') return `Receta R${String(r.codigo ?? 0).padStart(4, '0')}`
-    if (tabla === 'consentimientos') return r.titulo ?? 'Consentimiento'
-    return r.id
-  }
-
-  return (
-    <div className="card">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700">{titulo}</h3>
-        <Link to={ruta} className="btn-ghost !py-1 text-xs"><ExternalLink size={13} /> Abrir módulo</Link>
-      </div>
-      {saldo != null && saldo > 0 && (
-        <div className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
-          Saldo pendiente: {money(saldo)}
-        </div>
-      )}
-      {cargando ? (
-        <Cargando texto="Cargando…" />
-      ) : rows.length === 0 ? (
-        <p className="py-6 text-center text-sm text-slate-400">Este paciente no tiene {titulo.toLowerCase()}.</p>
-      ) : (
-        <div className="divide-y divide-slate-50">
-          {rows.map((r) => (
-            <div key={r.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-              <span className="text-slate-700">{tituloFila(r)}</span>
-              <span className="flex items-center gap-3 text-slate-500">
-                {r.fecha && <span className="text-xs">{fechaCorta(r.fecha)}</span>}
-                {r.estado && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium">{r.estado}</span>}
-                {r.total != null && <span className="font-semibold text-slate-700">{money(Number(r.total))}</span>}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}

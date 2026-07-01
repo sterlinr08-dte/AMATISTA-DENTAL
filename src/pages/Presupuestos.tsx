@@ -27,7 +27,7 @@ function codigoPresupuesto(codigo: number | null | undefined): string {
   return 'P' + String(codigo ?? 0).padStart(4, '0')
 }
 
-export default function Presupuestos() {
+export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string } = {}) {
   const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [empleados, setEmpleados] = useState<Empleado[]>([])
@@ -51,8 +51,10 @@ export default function Presupuestos() {
 
   async function cargar() {
     setLoading(true)
+    let q = supabase.from('presupuestos').select('*').order('codigo', { ascending: false })
+    if (pacienteFijo) q = q.eq('cliente_id', pacienteFijo)
     const [{ data }, { data: cls }] = await Promise.all([
-      supabase.from('presupuestos').select('*').order('codigo', { ascending: false }),
+      q,
       supabase.from('clientes').select('*').order('nombre'),
     ])
     setPresupuestos(data ?? [])
@@ -72,7 +74,7 @@ export default function Presupuestos() {
   useEffect(() => {
     cargar()
     cargarCatalogos()
-  }, [])
+  }, [pacienteFijo])
 
   function nombreCliente(id: string | null): string {
     if (!id) return 'Sin paciente'
@@ -83,7 +85,7 @@ export default function Presupuestos() {
     setEditId(null)
     setEditEstado('BORRADOR')
     setEditFacturaId(null)
-    setClienteId('')
+    setClienteId(pacienteFijo ?? '')
     setEmpleadoId('')
     setFecha(hoyISO())
     setEstado('BORRADOR')
@@ -321,15 +323,24 @@ export default function Presupuestos() {
 
   return (
     <div>
-      <PageHeader
-        title="Presupuestos"
-        subtitle={`${presupuestos.length} plan(es) de tratamiento`}
-        action={
+      {pacienteFijo ? (
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-700">{presupuestos.length} plan(es) de tratamiento</h3>
           <button className="btn-primary" onClick={nuevo}>
             <Plus size={16} /> Nuevo presupuesto
           </button>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          title="Presupuestos"
+          subtitle={`${presupuestos.length} plan(es) de tratamiento`}
+          action={
+            <button className="btn-primary" onClick={nuevo}>
+              <Plus size={16} /> Nuevo presupuesto
+            </button>
+          }
+        />
+      )}
 
       {loading ? (
         <Cargando />
@@ -365,7 +376,11 @@ export default function Presupuestos() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Paciente</label>
-              <SelectorPaciente clientes={clientes} value={clienteId} onChange={setClienteId} />
+              {pacienteFijo ? (
+                <input className="input bg-slate-50" value={nombreCliente(clienteId)} readOnly />
+              ) : (
+                <SelectorPaciente clientes={clientes} value={clienteId} onChange={setClienteId} />
+              )}
             </div>
             <div>
               <label className="label">Odontólogo</label>

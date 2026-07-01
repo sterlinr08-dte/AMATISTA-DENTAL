@@ -43,7 +43,7 @@ const estadoBadge: Record<EstadoFactura, string> = {
   ANULADA: 'bg-rose-50 text-rose-700',
 }
 
-export default function Facturacion() {
+export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } = {}) {
   const { perfil, puedeAccion } = useAuth()
   const { negocio } = useNegocio()
   const puedeAnular = puedeAccion('facturas.anular')
@@ -255,8 +255,10 @@ export default function Facturacion() {
 
   async function cargar() {
     setLoading(true)
+    let fq = supabase.from('facturas').select('*').order('numero', { ascending: false })
+    if (pacienteFijo) fq = fq.eq('cliente_id', pacienteFijo)
     const [{ data }, { data: dev }] = await Promise.all([
-      supabase.from('facturas').select('*').order('numero', { ascending: false }),
+      fq,
       supabase.from('devoluciones').select('factura_id, monto'),
     ])
     setFacturas(data ?? [])
@@ -283,7 +285,8 @@ export default function Facturacion() {
   useEffect(() => {
     cargar()
     cargarCatalogos()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pacienteFijo])
 
   // Estado de la impresora directa (QZ Tray): verde si está conectada
   useEffect(() => {
@@ -314,9 +317,11 @@ export default function Facturacion() {
 
   function nuevaFactura() {
     setEditId(null)
-    setClienteId('')
+    // En la ficha del paciente, la factura arranca ya con ese paciente seleccionado.
+    const fijo = pacienteFijo ? clientes.find((c) => c.id === pacienteFijo) : null
+    setClienteId(fijo ? fijo.id : '')
     setClienteNombre('')
-    setBuscarCliente('')
+    setBuscarCliente(fijo ? `${codigoCliente(fijo.codigo)} · ${fijo.nombre}` : '')
     setFecha(hoyISO())
     setTipoVenta('CONTADO')
     setAplicaItbis(false)
@@ -613,10 +618,12 @@ export default function Facturacion() {
   return (
     <div>
       {!open && (<>
-      <PageHeader
-        title="Facturación"
-        subtitle={`${facturas.length} factura(s)`}
-      />
+      {!pacienteFijo && (
+        <PageHeader
+          title="Facturación"
+          subtitle={`${facturas.length} factura(s)`}
+        />
+      )}
 
       {/* Resumen de cuentas abiertas (compacto) */}
       <div className="mb-3 inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-1 text-xs">
