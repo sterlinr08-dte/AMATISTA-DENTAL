@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Plus, Pencil, Trash2, CalendarDays, Clock, Receipt } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { CitaConRelaciones, Cliente, Empleado, EstadoCita, Servicio } from '../types'
@@ -49,6 +50,7 @@ const vacio = {
 export default function Citas() {
   const { puedeAccion } = useAuth()
   const { negocio } = useNegocio()
+  const [params, setParams] = useSearchParams()
   const puedeEliminar = puedeAccion('citas.eliminar')
   const [items, setItems] = useState<CitaConRelaciones[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -113,12 +115,24 @@ export default function Citas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fecha])
 
-  function abrirNuevo() {
+  function abrirNuevo(clienteId?: string) {
     setEditId(null)
-    setForm({ ...vacio, fecha })
+    setForm({ ...vacio, fecha, cliente_id: clienteId ?? '' })
     setServLineas([{ servicio_id: '', empleado_id: '', precio: 0 }])
     setOpen(true)
   }
+
+  // Si se llega desde la ficha del paciente (/citas?paciente=<id>), abrir la
+  // cita nueva ya con ese paciente seleccionado.
+  useEffect(() => {
+    const pid = params.get('paciente')
+    if (pid && clientes.some((c) => c.id === pid)) {
+      abrirNuevo(pid)
+      params.delete('paciente')
+      setParams(params, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, clientes])
 
   async function abrirEditar(c: CitaConRelaciones) {
     setEditId(c.id)
@@ -253,7 +267,7 @@ export default function Citas() {
         action={
           <div className="flex items-center gap-2">
             <input type="date" className="input w-auto" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-            <button className="btn-primary" onClick={abrirNuevo}>
+            <button className="btn-primary" onClick={() => abrirNuevo()}>
               <Plus size={16} /> Nueva cita
             </button>
           </div>
@@ -266,7 +280,7 @@ export default function Citas() {
         <div className="card flex flex-col items-center gap-3 py-12 text-center">
           <CalendarDays className="text-brand-300" size={40} />
           <p className="text-slate-500">No hay citas para este día.</p>
-          <button className="btn-primary" onClick={abrirNuevo}>
+          <button className="btn-primary" onClick={() => abrirNuevo()}>
             <Plus size={16} /> Agendar cita
           </button>
         </div>

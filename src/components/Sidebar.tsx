@@ -29,7 +29,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 
-type Link = { to: string; label: string; icon: typeof Users; modulo: string; end?: boolean }
+type Link = { to: string; label: string; icon: typeof Users; modulo: string; end?: boolean; oculto?: boolean }
 
 const grupos: { titulo: string; links: Link[] }[] = [
   {
@@ -39,13 +39,14 @@ const grupos: { titulo: string; links: Link[] }[] = [
       { to: '/citas', label: 'Citas / Agenda', icon: CalendarDays, modulo: 'citas' },
       { to: '/clientes', label: 'Pacientes', icon: Users, modulo: 'clientes' },
       { to: '/ficha', label: 'Ficha del paciente', icon: IdCard, modulo: 'ficha' },
-      { to: '/odontograma', label: 'Odontograma', icon: Smile, modulo: 'odontograma' },
-      { to: '/periodontograma', label: 'Periodontograma', icon: Ruler, modulo: 'periodontograma' },
-      { to: '/historia', label: 'Historia clínica', icon: HeartPulse, modulo: 'historia' },
-      { to: '/imagenes', label: 'Imágenes / Radiografías', icon: Image, modulo: 'imagenes' },
-      { to: '/recetas', label: 'Recetas', icon: Pill, modulo: 'recetas' },
-      { to: '/consentimientos', label: 'Consentimientos', icon: PenLine, modulo: 'consentimientos' },
-      { to: '/presupuestos', label: 'Presupuestos', icon: FileText, modulo: 'presupuestos' },
+      // Se trabajan desde la ficha del paciente; ocultos del menú para dejarlo más limpio.
+      { to: '/odontograma', label: 'Odontograma', icon: Smile, modulo: 'odontograma', oculto: true },
+      { to: '/periodontograma', label: 'Periodontograma', icon: Ruler, modulo: 'periodontograma', oculto: true },
+      { to: '/historia', label: 'Historia clínica', icon: HeartPulse, modulo: 'historia', oculto: true },
+      { to: '/imagenes', label: 'Imágenes / Radiografías', icon: Image, modulo: 'imagenes', oculto: true },
+      { to: '/recetas', label: 'Recetas', icon: Pill, modulo: 'recetas', oculto: true },
+      { to: '/consentimientos', label: 'Consentimientos', icon: PenLine, modulo: 'consentimientos', oculto: true },
+      { to: '/presupuestos', label: 'Presupuestos', icon: FileText, modulo: 'presupuestos', oculto: true },
       { to: '/seguimiento', label: 'Seguimiento de planes', icon: ClipboardCheck, modulo: 'seguimiento' },
       { to: '/alertas', label: 'Alertas', icon: Bell, modulo: 'alertas' },
       { to: '/servicios', label: 'Tratamientos y precios', icon: Stethoscope, modulo: 'servicios' },
@@ -84,7 +85,7 @@ interface Props {
 export default function Sidebar({ open, onClose }: Props) {
   const { perfil, signOut, puede } = useAuth()
   const visibles = grupos
-    .map((g) => ({ ...g, links: g.links.filter((l) => puede(l.modulo)) }))
+    .map((g) => ({ ...g, links: g.links.filter((l) => puede(l.modulo) && !l.oculto) }))
     .filter((g) => g.links.length > 0)
 
   return (
