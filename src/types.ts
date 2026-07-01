@@ -442,3 +442,12 @@ export interface Receta {
 export interface RecetaConItems extends Receta {
   items: RecetaItem[]
 }
+
+export interface Alerta {
+  id: string
+  cliente_id: string
+  tipo: 'alergia' | 'saldo' | 'medica' | 'importante' | 'otro'
+  texto: string
+  activa: boolean
+  created_at: string
+}

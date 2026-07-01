@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, ClipboardList, Receipt, ShoppingCart, Wallet, HandCoins, FileSpreadsheet, Printer } from 'lucide-react'
+import { Boxes, ClipboardList, Receipt, ShoppingCart, Wallet, HandCoins, FileSpreadsheet, Printer, BarChart3 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Articulo, Compra, Factura, Empleado, PagoEmpleado } from '../types'
 import { money, fechaCorta, fechaHora, hoyISO, codigoArticulo, codigoFactura } from '../lib/format'
@@ -32,6 +32,12 @@ interface ComFila {
   porPagar: number
 }
 
+// Datos de los gráficos (siempre en RD$ para ingresos)
+interface BarDato {
+  label: string
+  valor: number
+}
+
 export default function Reportes() {
   const { negocio } = useNegocio()
   const { puedeAccion, perfil } = useAuth()
@@ -51,6 +57,88 @@ export default function Reportes() {
   const [compras, setCompras] = useState<Compra[]>([])
   const [cuadres, setCuadres] = useState<any[]>([])
   const [comisiones, setComisiones] = useState<ComFila[]>([])
+
+  // Datos para los gráficos (independientes de la pestaña activa)
+  const [gIngresosMes, setGIngresosMes] = useState<BarDato[]>([])
+  const [gTratamientos, setGTratamientos] = useState<BarDato[]>([])
+  const [gDentistas, setGDentistas] = useState<BarDato[]>([])
+  const [gLoading, setGLoading] = useState(true)
+
+  // Carga de los gráficos: ingresos por mes (últimos 6 meses), top tratamientos
+  // e ingresos por profesional (según servicios facturados PAGADOS).
+  useEffect(() => {
+    let cancel = false
+    ;(async () => {
+      setGLoading(true)
+      // Rango de los últimos 6 meses (incluyendo el mes actual)
+      const ahora = new Date()
+      const inicio = new Date(ahora.getFullYear(), ahora.getMonth() - 5, 1)
+      const isoInicio = `${inicio.getFullYear()}-${String(inicio.getMonth() + 1).padStart(2, '0')}-01`
+
+      const meses: { key: string; label: string }[] = []
+      for (let i = 0; i < 6; i++) {
+        const d = new Date(inicio.getFullYear(), inicio.getMonth() + i, 1)
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        meses.push({ key, label: d.toLocaleDateString('es-DO', { month: 'short', year: '2-digit' }) })
+      }
+
+      const [facRes, itemsRes, empRes] = await Promise.all([
+        supabase.from('facturas').select('fecha,total,estado').eq('estado', 'PAGADA').gte('fecha', isoInicio),
+        // Solo servicios pagados dentro del rango de reportes (arriba)
+        supabase
+          .from('factura_items')
+          .select('descripcion,importe,servicio_id,empleado_id, facturas!inner(fecha,estado)')
+          .is('articulo_id', null)
+          .eq('facturas.estado', 'PAGADA')
+          .gte('facturas.fecha', desde)
+          .lte('facturas.fecha', hasta),
+        supabase.from('empleados').select('id,nombre'),
+      ])
+
+      // 1) Ingresos por mes
+      const porMes = new Map<string, number>()
+      for (const m of meses) porMes.set(m.key, 0)
+      for (const f of (facRes.data ?? []) as any[]) {
+        const key = String(f.fecha ?? '').slice(0, 7)
+        if (porMes.has(key)) porMes.set(key, (porMes.get(key) ?? 0) + Number(f.total ?? 0))
+      }
+      const ingresosMes = meses.map((m) => ({ label: m.label, valor: porMes.get(m.key) ?? 0 }))
+
+      // 2) Top tratamientos (por ingreso)
+      const porTrat = new Map<string, number>()
+      for (const it of (itemsRes.data ?? []) as any[]) {
+        const nombre = (it.descripcion || 'Sin descripción').trim()
+        porTrat.set(nombre, (porTrat.get(nombre) ?? 0) + Number(it.importe ?? 0))
+      }
+      const tratamientos = [...porTrat.entries()]
+        .map(([label, valor]) => ({ label, valor }))
+        .sort((a, b) => b.valor - a.valor)
+        .slice(0, 6)
+
+      // 3) Ingresos por profesional
+      const nombreEmp = new Map<string, string>()
+      for (const e of (empRes.data ?? []) as any[]) nombreEmp.set(e.id, e.nombre)
+      const porEmp = new Map<string, number>()
+      for (const it of (itemsRes.data ?? []) as any[]) {
+        if (!it.empleado_id) continue
+        porEmp.set(it.empleado_id, (porEmp.get(it.empleado_id) ?? 0) + Number(it.importe ?? 0))
+      }
+      const dentistas = [...porEmp.entries()]
+        .map(([id, valor]) => ({ label: nombreEmp.get(id) || 'Sin asignar', valor }))
+        .sort((a, b) => b.valor - a.valor)
+        .slice(0, 6)
+
+      if (!cancel) {
+        setGIngresosMes(ingresosMes)
+        setGTratamientos(tratamientos)
+        setGDentistas(dentistas)
+        setGLoading(false)
+      }
+    })()
+    return () => {
+      cancel = true
+    }
+  }, [desde, hasta])
 
   useEffect(() => {
     let cancel = false
@@ -309,6 +397,53 @@ export default function Reportes() {
 
   const tabActual = tabs.find((t) => t.key === tab)!
 
+  // --- Gráficos dibujados con divs de Tailwind (sin librerías) ---
+  // Barras verticales (ingresos por mes)
+  function BarrasVerticales({ datos }: { datos: BarDato[] }) {
+    if (datos.every((d) => d.valor === 0)) return <p className="py-8 text-center text-sm text-slate-500">Sin datos aún</p>
+    const max = Math.max(1, ...datos.map((d) => d.valor))
+    return (
+      <div className="flex h-52 items-end justify-between gap-2 pt-2">
+        {datos.map((d, i) => (
+          <div key={i} className="flex flex-1 flex-col items-center gap-1">
+            <span className="text-[10px] font-semibold text-slate-500">{d.valor > 0 ? money(d.valor) : ''}</span>
+            <div className="flex w-full items-end justify-center" style={{ height: '150px' }}>
+              <div
+                className="w-full max-w-[38px] rounded-t-lg bg-gradient-to-t from-amber-500 to-amber-300 transition-all duration-300"
+                style={{ height: `${Math.max(2, (d.valor / max) * 100)}%` }}
+                title={`${d.label}: ${money(d.valor)}`}
+              />
+            </div>
+            <span className="text-[11px] capitalize text-slate-600">{d.label}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Barras horizontales (top tratamientos, profesionales)
+  function BarrasHorizontales({ datos }: { datos: BarDato[] }) {
+    if (datos.length === 0) return <p className="py-8 text-center text-sm text-slate-500">Sin datos aún</p>
+    const max = Math.max(1, ...datos.map((d) => d.valor))
+    return (
+      <div className="space-y-2 pt-2">
+        {datos.map((d, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="w-28 shrink-0 truncate text-xs text-slate-600" title={d.label}>{d.label}</span>
+            <div className="h-5 flex-1 overflow-hidden rounded-lg bg-amber-50">
+              <div
+                className="flex h-full items-center justify-end rounded-lg bg-gradient-to-r from-amber-300 to-amber-500 px-2 transition-all duration-300"
+                style={{ width: `${Math.max(6, (d.valor / max) * 100)}%` }}
+              >
+                <span className="whitespace-nowrap text-[10px] font-semibold text-amber-900">{money(d.valor)}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div>
       <PageHeader title="Reportes" subtitle="Inventario, ventas, compras, cuadres y comisiones" />
@@ -338,6 +473,36 @@ export default function Reportes() {
           <button className="btn-ghost" onClick={exportarExcel}><FileSpreadsheet size={16} /> Excel</button>
           <button className="btn-primary" onClick={exportarPDF}><Printer size={16} /> Imprimir / PDF</button>
         </div>
+      </div>
+
+      {/* GRÁFICOS (dibujados con divs de Tailwind, sin librerías) */}
+      <div className="panel-3d mb-4 p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <BarChart3 size={18} className="text-amber-500" />
+          <h2 className="font-display text-lg font-bold text-slate-800">Gráficos</h2>
+          <span className="text-xs text-slate-500">· {periodo} (tratamientos y profesionales) · últimos 6 meses (ingresos)</span>
+        </div>
+        {gLoading ? (
+          <Cargando />
+        ) : (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-3 xl:col-span-1">
+              <h3 className="mb-1 text-sm font-semibold text-slate-700">Ingresos por mes</h3>
+              <p className="mb-2 text-xs text-slate-500">Facturas pagadas · últimos 6 meses</p>
+              <BarrasVerticales datos={gIngresosMes} />
+            </div>
+            <div>
+              <h3 className="mb-1 text-sm font-semibold text-slate-700">Top tratamientos</h3>
+              <p className="mb-2 text-xs text-slate-500">Por ingreso · top 6</p>
+              <BarrasHorizontales datos={gTratamientos} />
+            </div>
+            <div>
+              <h3 className="mb-1 text-sm font-semibold text-slate-700">Ingresos por profesional</h3>
+              <p className="mb-2 text-xs text-slate-500">Servicios facturados · top 6</p>
+              <BarrasHorizontales datos={gDentistas} />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card">
