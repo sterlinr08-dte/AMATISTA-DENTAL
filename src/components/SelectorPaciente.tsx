@@ -35,7 +35,9 @@ export default function SelectorPaciente({ clientes, value, onChange, placeholde
     const t = termino.trim().toLowerCase()
     return t
       ? clientes.filter((c) =>
-          `${codigoCliente(c.codigo)} ${c.nombre} ${c.telefono ?? ''}`.toLowerCase().includes(t),
+          `${codigoCliente(c.codigo)} ${c.nombre} ${c.telefono ?? ''} ${c.cedula ?? ''}`
+            .toLowerCase()
+            .includes(t),
         )
       : clientes
   }
@@ -159,7 +161,12 @@ export default function SelectorPaciente({ clientes, value, onChange, placeholde
                     <span className="font-mono text-xs text-slate-400">{codigoCliente(c.codigo)}</span>
                     <span className="truncate">{c.nombre}</span>
                   </span>
-                  {c.telefono && <span className="shrink-0 text-xs text-slate-400">{c.telefono}</span>}
+                  {(c.cedula || c.telefono) && (
+                    <span className="shrink-0 text-right text-xs text-slate-400">
+                      {c.cedula && <span className="block">🆔 {c.cedula}</span>}
+                      {c.telefono && <span className="block">{c.telefono}</span>}
+                    </span>
+                  )}
                 </button>
               ))
             )}
