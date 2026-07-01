@@ -14,6 +14,7 @@ import {
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
 import Modal from '../components/Modal'
+import DienteSVG from '../components/DienteSVG'
 
 type Denticion = 'permanente' | 'temporal'
 
@@ -182,11 +183,10 @@ export default function Odontograma() {
   const arcadaInf = denticion === 'permanente' ? ARCADA_PERMANENTE_INF : ARCADA_TEMPORAL_INF
   const mitad = denticion === 'permanente' ? 8 : 5
 
-  // ---- Dibujo SVG de un diente (silueta simple) ----
-  function DienteSVG({ n }: { n: number }) {
+  // ---- Diente clicable (usa el SVG anatómico realista) ----
+  function DienteBoton({ n, arriba }: { n: number; arriba: boolean }) {
     const pieza = marcaPieza(n)
     const def = pieza ? estadoDienteDef(pieza.estado) : null
-    const relleno = def ? def.color : '#ffffff'
     return (
       <button
         type="button"
@@ -194,35 +194,13 @@ export default function Odontograma() {
         title={def ? `${def.label} — clic para pieza completa` : 'Pieza completa'}
         className="rounded-lg p-0.5 transition hover:ring-2 hover:ring-brand-300"
       >
-        <svg width="34" height="40" viewBox="0 0 34 40" aria-hidden="true">
-          {/* Corona + raíces (silueta simplificada de molar) */}
-          <path
-            d="M6 14 C6 6 12 3 17 3 C22 3 28 6 28 14 C28 20 26 23 24 25
-               L23 36 C23 38 21 38 20 36 L18.5 27 C18 25 16 25 15.5 27 L14 36
-               C13 38 11 38 11 36 L10 25 C8 23 6 20 6 14 Z"
-            fill={relleno}
-            stroke="#94a3b8"
-            strokeWidth="1.2"
-            strokeLinejoin="round"
-          />
-          {/* Ausente: X roja sobre la pieza */}
-          {pieza?.estado === 'ausente' && (
-            <g stroke="#dc2626" strokeWidth="2.4" strokeLinecap="round">
-              <line x1="8" y1="7" x2="26" y2="33" />
-              <line x1="26" y1="7" x2="8" y2="33" />
-            </g>
-          )}
-          {/* Implante: tornillo central */}
-          {pieza?.estado === 'implante' && (
-            <g stroke="#0f766e" strokeWidth="1.6" strokeLinecap="round">
-              <line x1="17" y1="10" x2="17" y2="34" />
-              <line x1="12" y1="14" x2="22" y2="14" />
-              <line x1="12" y1="19" x2="22" y2="19" />
-              <line x1="13" y1="24" x2="21" y2="24" />
-              <line x1="14" y1="29" x2="20" y2="29" />
-            </g>
-          )}
-        </svg>
+        <DienteSVG
+          fdi={n}
+          arriba={arriba}
+          colorPieza={def ? def.color : undefined}
+          estado={pieza?.estado}
+          size={34}
+        />
       </button>
     )
   }
@@ -268,14 +246,14 @@ export default function Odontograma() {
     )
   }
 
-  function Arcada({ dientes }: { dientes: number[] }) {
+  function Arcada({ dientes, arriba }: { dientes: number[]; arriba: boolean }) {
     return (
       <div className="flex items-end justify-center">
         {dientes.map((n, i) => (
           <div key={n} className="flex items-end">
             {i === mitad && <div className="mx-2 h-24 w-px self-center bg-slate-300" />}
             <div className="flex flex-col items-center gap-0.5 px-0.5">
-              <DienteSVG n={n} />
+              <DienteBoton n={n} arriba={arriba} />
               <span className="text-[10px] font-semibold text-slate-500">{n}</span>
               <CruzCaras n={n} />
             </div>
@@ -337,11 +315,11 @@ export default function Odontograma() {
                 <div className="flex min-w-max flex-col items-center gap-6">
                   <div className="flex flex-col items-center gap-1">
                     <span className="text-xs uppercase tracking-wide text-slate-400">Arcada superior</span>
-                    <Arcada dientes={arcadaSup} />
+                    <Arcada dientes={arcadaSup} arriba={true} />
                   </div>
                   <div className="h-px w-full bg-slate-200" />
                   <div className="flex flex-col items-center gap-1">
-                    <Arcada dientes={arcadaInf} />
+                    <Arcada dientes={arcadaInf} arriba={false} />
                     <span className="text-xs uppercase tracking-wide text-slate-400">Arcada inferior</span>
                   </div>
                 </div>
