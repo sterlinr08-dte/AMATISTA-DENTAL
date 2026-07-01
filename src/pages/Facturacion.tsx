@@ -20,9 +20,22 @@ interface LineaTmp {
   cantidad: number
   precio_unit: number
   empleado_id: string
+  // Si la línea viene de un tratamiento realizado del plan, su id (para marcarlo facturado).
+  presupuesto_item_id?: string
 }
 
 const lineaVacia: LineaTmp = { servicio_id: '', articulo_id: '', descripcion: '', cantidad: 1, precio_unit: 0, empleado_id: '' }
+
+// Ítem de plan realizado pendiente de facturar (con datos del plan para armar la línea).
+interface PendientePlan {
+  id: string
+  servicio_id: string | null
+  diente: number | null
+  descripcion: string
+  cantidad: number
+  precio_unit: number
+  empleado_id: string | null
+}
 
 const estadoBadge: Record<EstadoFactura, string> = {
   PENDIENTE: 'bg-amber-50 text-amber-700',
@@ -75,6 +88,8 @@ export default function Facturacion() {
   const [descuentoPct, setDescuentoPct] = useState(0)          // descuento como % del subtotal
   const [notas, setNotas] = useState('')
   const [lineas, setLineas] = useState<LineaTmp[]>([])
+  // Tratamientos realizados (del plan) pendientes de facturar para el paciente elegido.
+  const [pendientesPlan, setPendientesPlan] = useState<PendientePlan[]>([])
   const [buscarItem, setBuscarItem] = useState('')
   const [editId, setEditId] = useState<string | null>(null)
   // Cantidad por artículo que ya tenía la factura al editar (para no bloquear de más la existencia)
@@ -150,6 +165,65 @@ export default function Facturacion() {
   // Agrega un concepto manual (algo que no está en el catálogo)
   function agregarManual() {
     setLineas((prev) => [...prev, { ...lineaVacia }])
+  }
+
+  // Carga los tratamientos REALIZADOS (de los planes del paciente) que aún no se han facturado.
+  async function cargarPendientesPlan(cli: string) {
+    if (!cli) {
+      setPendientesPlan([])
+      return
+    }
+    const { data, error } = await supabase
+      .from('presupuesto_items')
+      .select('id, servicio_id, diente, descripcion, cantidad, precio_unit, presupuestos!inner(cliente_id, empleado_id)')
+      .eq('estado', 'REALIZADO')
+      .eq('facturado', false)
+      .eq('presupuestos.cliente_id', cli)
+      .order('id')
+    if (error) {
+      setPendientesPlan([])
+      return
+    }
+    setPendientesPlan(
+      (data ?? []).map((it: any) => ({
+        id: it.id,
+        servicio_id: it.servicio_id ?? null,
+        diente: it.diente ?? null,
+        descripcion: it.descripcion,
+        cantidad: Number(it.cantidad) || 1,
+        precio_unit: Number(it.precio_unit) || 0,
+        empleado_id: it.presupuestos?.empleado_id ?? null,
+      })),
+    )
+  }
+
+  // Al elegir paciente en una factura NUEVA, ofrecer sus tratamientos realizados.
+  useEffect(() => {
+    if (open && !editId && clienteId) cargarPendientesPlan(clienteId)
+    else setPendientesPlan([])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editId, clienteId])
+
+  // Agrega un tratamiento realizado del plan como línea de la factura.
+  function agregarDesdePlan(p: PendientePlan) {
+    const desc = p.diente != null ? `${p.descripcion} (diente ${p.diente})` : p.descripcion
+    setLineas((prev) => [
+      ...prev,
+      {
+        servicio_id: p.servicio_id ?? '',
+        articulo_id: '',
+        descripcion: desc,
+        cantidad: p.cantidad,
+        precio_unit: p.precio_unit,
+        empleado_id: p.empleado_id ?? '',
+        presupuesto_item_id: p.id,
+      },
+    ])
+    setPendientesPlan((prev) => prev.filter((x) => x.id !== p.id))
+  }
+
+  function agregarTodosDelPlan() {
+    pendientesPlan.forEach((p) => agregarDesdePlan(p))
   }
 
   // Crear cliente rápido sin salir de la factura
@@ -380,6 +454,17 @@ export default function Facturacion() {
     for (const l of items) {
       if (l.articulo_id) {
         await supabase.rpc('ajustar_stock', { p_articulo: l.articulo_id, p_delta: -l.cantidad })
+      }
+    }
+    // Marcar como facturados los tratamientos realizados del plan que se incluyeron
+    // (solo en facturas nuevas), para que no se vuelvan a ofrecer.
+    if (!editId) {
+      const planItemIds = items.map((l) => l.presupuesto_item_id).filter(Boolean) as string[]
+      if (planItemIds.length > 0) {
+        await supabase
+          .from('presupuesto_items')
+          .update({ facturado: true, factura_id: facturaId })
+          .in('id', planItemIds)
       }
     }
     setSaving(false)
@@ -732,6 +817,42 @@ export default function Facturacion() {
             </div>
             <p className="mt-1 text-xs text-slate-600">Secuencia independiente por tipo: {tipoVenta === 'CREDITO' ? 'CR000001, CR000002… (crédito)' : 'CO000001, CO000002… (contado)'}.</p>
           </div>
+
+          {/* Tratamientos realizados por el odontólogo, pendientes de facturar */}
+          {pendientesPlan.length > 0 && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-emerald-800">
+                  Tratamientos realizados pendientes de facturar ({pendientesPlan.length})
+                </span>
+                <button type="button" className="btn-ghost !py-1 text-xs" onClick={agregarTodosDelPlan}>
+                  <Plus size={14} /> Agregar todos
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {pendientesPlan.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => agregarDesdePlan(p)}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg border border-emerald-100 bg-white px-3 py-2 text-left text-sm transition hover:bg-emerald-50"
+                  >
+                    <span className="text-slate-700">
+                      {p.descripcion}
+                      {p.diente != null && <span className="text-slate-400"> · diente {p.diente}</span>}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="font-semibold text-slate-700">{money(p.precio_unit)}</span>
+                      <Plus size={14} className="text-emerald-600" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-emerald-700/80">
+                Vienen del plan del paciente (marcados “Realizado” por el odontólogo). Al facturarlos no se vuelven a ofrecer.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="label">Buscar servicio o artículo</label>

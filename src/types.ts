@@ -374,6 +374,9 @@ export interface PresupuestoItem {
   precio_unit: number
   subtotal: number
   estado: EstadoPresupuestoItem
+  // true si el tratamiento realizado ya fue agregado a una factura (evita doble cobro).
+  facturado?: boolean
+  factura_id?: string | null
   created_at: string
 }
 
