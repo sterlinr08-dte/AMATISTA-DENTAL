@@ -11,6 +11,7 @@ import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
 import SelectorPaciente from '../components/SelectorPaciente'
 import HistoriaClinica from './HistoriaClinica'
+import Evoluciones from './Evoluciones'
 import Odontograma from './Odontograma'
 import Periodontograma from './Periodontograma'
 import ImagenesPaciente from './ImagenesPaciente'
@@ -49,12 +50,13 @@ function iniciales(nombre: string): string {
 }
 
 type TabKey =
-  | 'datos' | 'clinica' | 'odonto' | 'perio' | 'radiografias' | 'presupuestos'
+  | 'datos' | 'clinica' | 'evoluciones' | 'odonto' | 'perio' | 'radiografias' | 'presupuestos'
   | 'facturacion' | 'imagenes' | 'recetas' | 'consentimientos'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'datos', label: 'Datos personales' },
   { key: 'clinica', label: 'Ficha clínica' },
+  { key: 'evoluciones', label: 'Evoluciones' },
   { key: 'odonto', label: 'Odontograma' },
   { key: 'perio', label: 'Periodontograma' },
   { key: 'radiografias', label: 'Radiografías' },
@@ -229,6 +231,7 @@ export default function FichaPaciente() {
           <div>
             {tab === 'datos' && <TabDatos cliente={cliente} edad={edad} />}
             {tab === 'clinica' && <HistoriaClinica pacienteFijo={pacienteId} />}
+            {tab === 'evoluciones' && <Evoluciones pacienteFijo={pacienteId} />}
             {tab === 'odonto' && <Odontograma pacienteFijo={pacienteId} />}
             {tab === 'perio' && <Periodontograma pacienteFijo={pacienteId} />}
             {tab === 'radiografias' && <Radiografias pacienteFijo={pacienteId} />}
