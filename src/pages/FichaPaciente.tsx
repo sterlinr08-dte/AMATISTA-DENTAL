@@ -16,6 +16,7 @@ import Odontograma from './Odontograma'
 import Periodontograma from './Periodontograma'
 import ImagenesPaciente from './ImagenesPaciente'
 import Radiografias from './Radiografias'
+import Laboratorio from './Laboratorio'
 import Presupuestos from './Presupuestos'
 import Facturacion from './Facturacion'
 import Recetas from './Recetas'
@@ -50,7 +51,7 @@ function iniciales(nombre: string): string {
 }
 
 type TabKey =
-  | 'datos' | 'clinica' | 'evoluciones' | 'odonto' | 'perio' | 'radiografias' | 'presupuestos'
+  | 'datos' | 'clinica' | 'evoluciones' | 'odonto' | 'perio' | 'radiografias' | 'laboratorio' | 'presupuestos'
   | 'facturacion' | 'imagenes' | 'recetas' | 'consentimientos'
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -60,6 +61,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'odonto', label: 'Odontograma' },
   { key: 'perio', label: 'Periodontograma' },
   { key: 'radiografias', label: 'Radiografías' },
+  { key: 'laboratorio', label: 'Laboratorio' },
   { key: 'presupuestos', label: 'Planes / Presupuestos' },
   { key: 'facturacion', label: 'Facturación' },
   { key: 'imagenes', label: 'Imágenes / Rx' },
@@ -235,6 +237,7 @@ export default function FichaPaciente() {
             {tab === 'odonto' && <Odontograma pacienteFijo={pacienteId} />}
             {tab === 'perio' && <Periodontograma pacienteFijo={pacienteId} />}
             {tab === 'radiografias' && <Radiografias pacienteFijo={pacienteId} />}
+            {tab === 'laboratorio' && <Laboratorio pacienteFijo={pacienteId} />}
             {tab === 'imagenes' && <ImagenesPaciente pacienteFijo={pacienteId} />}
             {tab === 'presupuestos' && <Presupuestos pacienteFijo={pacienteId} />}
             {tab === 'facturacion' && <Facturacion pacienteFijo={pacienteId} />}
