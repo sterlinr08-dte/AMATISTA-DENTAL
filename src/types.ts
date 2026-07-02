@@ -278,6 +278,31 @@ export interface SecuenciaNcf {
   updated_at: string
 }
 
+// Radiografía con su análisis (manual; preparado para IA a futuro).
+export interface Radiografia {
+  id: string
+  cliente_id: string
+  tipo: 'bitewing' | 'panoramica' | 'periapical'
+  tiene_metales: boolean
+  path: string
+  fecha: string
+  notas: string | null
+  analisis_estado: 'manual' | 'ia_pendiente' | 'ia_listo'
+  analisis_ia: any | null
+  created_at: string
+}
+
+export interface RadiografiaHallazgo {
+  id: string
+  radiografia_id: string
+  diente: number | null
+  tipo: string
+  severidad: string | null
+  nota: string | null
+  origen: 'manual' | 'ia'
+  created_at: string
+}
+
 // Tipado mínimo para el cliente de Supabase.
 export type Database = any
 
