@@ -15,6 +15,7 @@ import Recetas from './pages/Recetas'
 import Consentimientos from './pages/Consentimientos'
 import Alertas from './pages/Alertas'
 import Seguimiento from './pages/Seguimiento'
+import Controles from './pages/Controles'
 import Servicios from './pages/Servicios'
 import Articulos from './pages/Articulos'
 import Mobiliario from './pages/Mobiliario'
@@ -111,6 +112,7 @@ export default function App() {
               <Route path="/consentimientos" element={<Protegido modulo="consentimientos"><Consentimientos /></Protegido>} />
               <Route path="/alertas" element={<Protegido modulo="alertas"><Alertas /></Protegido>} />
               <Route path="/seguimiento" element={<Protegido modulo="seguimiento"><Seguimiento /></Protegido>} />
+              <Route path="/controles" element={<Protegido modulo="controles"><Controles /></Protegido>} />
               <Route path="/servicios" element={<Protegido modulo="servicios"><Servicios /></Protegido>} />
               <Route path="/articulos" element={<Protegido modulo="articulos"><Articulos /></Protegido>} />
               <Route path="/mobiliario" element={<Protegido modulo="mobiliario"><Mobiliario /></Protegido>} />

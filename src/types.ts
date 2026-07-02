@@ -280,6 +280,18 @@ export interface SecuenciaNcf {
   updated_at: string
 }
 
+// Control / Recall: recordatorio de que un paciente debe volver.
+export interface Control {
+  id: string
+  cliente_id: string
+  tipo: string
+  fecha_programada: string
+  motivo: string | null
+  estado: 'PENDIENTE' | 'CONTACTADO' | 'AGENDADO' | 'COMPLETADO'
+  contactado_at: string | null
+  created_at: string
+}
+
 // Radiografía con su análisis (manual; preparado para IA a futuro).
 export interface Radiografia {
   id: string
