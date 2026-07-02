@@ -335,6 +335,8 @@ export interface RadiografiaHallazgo {
   severidad: string | null
   nota: string | null
   origen: 'manual' | 'ia'
+  pos_x: number | null
+  pos_y: number | null
   created_at: string
 }
 

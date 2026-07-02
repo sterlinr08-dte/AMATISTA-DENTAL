@@ -35,6 +35,7 @@ export default function Radiografias({ pacienteFijo }: { pacienteFijo?: string }
   const [verId, setVerId] = useState<string | null>(null)
   const [hallazgos, setHallazgos] = useState<RadiografiaHallazgo[]>([])
   const [nuevo, setNuevo] = useState({ diente: '', tipo: 'caries', severidad: 'moderada', nota: '' })
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)  // punto marcado sobre la placa
   const [notasRx, setNotasRx] = useState('')
 
   useEffect(() => {
@@ -93,6 +94,7 @@ export default function Radiografias({ pacienteFijo }: { pacienteFijo?: string }
     setVerId(r.id)
     setNotasRx(r.notas ?? '')
     setNuevo({ diente: '', tipo: 'caries', severidad: 'moderada', nota: '' })
+    setPos(null)
     const { data } = await supabase.from('radiografia_hallazgos').select('*').eq('radiografia_id', r.id).order('created_at')
     setHallazgos((data as RadiografiaHallazgo[]) ?? [])
   }
@@ -106,10 +108,13 @@ export default function Radiografias({ pacienteFijo }: { pacienteFijo?: string }
       severidad: nuevo.severidad || null,
       nota: nuevo.nota.trim() || null,
       origen: 'manual',
+      pos_x: pos ? pos.x : null,
+      pos_y: pos ? pos.y : null,
     }).select().single()
     if (error || !data) return alert('Error al agregar el hallazgo: ' + error?.message)
     setHallazgos((prev) => [...prev, data as RadiografiaHallazgo])
     setNuevo({ diente: '', tipo: nuevo.tipo, severidad: 'moderada', nota: '' })
+    setPos(null)
     cargar(pacienteId)
   }
 
@@ -263,11 +268,45 @@ export default function Radiografias({ pacienteFijo }: { pacienteFijo?: string }
       >
         {rxActual && (
           <div className="space-y-4">
-            <div className="overflow-hidden rounded-xl bg-slate-900 ring-1 ring-slate-200">
-              {urls[rxActual.id]
-                ? <img src={urls[rxActual.id]} alt="Radiografía" className="mx-auto max-h-[52vh] w-full object-contain" />
-                : <div className="flex h-48 items-center justify-center text-slate-400"><ScanLine size={40} /></div>}
+            <div className="flex justify-center overflow-hidden rounded-xl bg-slate-900 p-2 ring-1 ring-slate-200">
+              {urls[rxActual.id] ? (
+                <div className="relative">
+                  <img
+                    src={urls[rxActual.id]}
+                    alt="Radiografía"
+                    className="block max-h-[52vh] w-auto max-w-full cursor-crosshair select-none"
+                    onClick={(e) => {
+                      const r = e.currentTarget.getBoundingClientRect()
+                      setPos({
+                        x: Math.round(((e.clientX - r.left) / r.width) * 1000) / 10,
+                        y: Math.round(((e.clientY - r.top) / r.height) * 1000) / 10,
+                      })
+                    }}
+                  />
+                  {/* Marcas de hallazgos ya guardados */}
+                  {hallazgos.filter((h) => h.pos_x != null && h.pos_y != null).map((h) => (
+                    <span
+                      key={h.id}
+                      title={`${labelHallazgo(h.tipo)}${h.diente != null ? ' · diente ' + h.diente : ''}`}
+                      style={{ left: `${h.pos_x}%`, top: `${h.pos_y}%` }}
+                      className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-help rounded-full border border-white/80 px-1.5 py-0.5 text-[10px] font-bold shadow ${colorHallazgo(h.tipo)}`}
+                    >
+                      {h.diente ?? '•'}
+                    </span>
+                  ))}
+                  {/* Punto que se está por marcar */}
+                  {pos && (
+                    <span style={{ left: `${pos.x}%`, top: `${pos.y}%` }} className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2">
+                      <span className="block h-4 w-4 animate-ping rounded-full bg-amber-400/80" />
+                      <span className="absolute inset-0 m-auto h-2 w-2 rounded-full bg-amber-500 ring-2 ring-white" />
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="flex h-48 w-full items-center justify-center text-slate-400"><ScanLine size={40} /></div>
+              )}
             </div>
+            <p className="text-center text-xs text-slate-500">Toca un diente en la placa para ubicar el hallazgo, luego complétalo abajo.</p>
 
             {/* Botón IA (reservado) */}
             <button type="button" disabled title="Se activará al conectar el proveedor de IA" className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/50 px-3 py-2 text-sm font-semibold text-indigo-400">
@@ -286,6 +325,7 @@ export default function Radiografias({ pacienteFijo }: { pacienteFijo?: string }
                       <span className={`badge ${colorHallazgo(h.tipo)}`}>{labelHallazgo(h.tipo)}</span>
                       {h.diente != null && <span className="font-mono text-xs font-semibold text-slate-600">Diente {h.diente}</span>}
                       {h.severidad && <span className={`badge ${colorSeveridad(h.severidad)}`}>{h.severidad}</span>}
+                      {h.pos_x != null && <span title="Marcado en la placa" className="text-xs text-emerald-600">📍</span>}
                       {h.nota && <span className="truncate text-slate-600">{h.nota}</span>}
                       <button onClick={() => eliminarHallazgo(h.id)} className="ml-auto rounded-lg p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600"><X size={15} /></button>
                     </div>
@@ -296,7 +336,17 @@ export default function Radiografias({ pacienteFijo }: { pacienteFijo?: string }
 
             {/* Agregar hallazgo */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Agregar hallazgo</p>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Agregar hallazgo</p>
+                {pos ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                    Ubicado en la placa ✓
+                    <button onClick={() => setPos(null)} className="text-slate-400 hover:text-rose-600">(quitar)</button>
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400">Sin ubicar (toca la placa)</span>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <div className="col-span-2">
                   <span className="text-xs text-slate-600">Tipo</span>
