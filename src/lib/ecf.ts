@@ -101,6 +101,9 @@ export async function emitirECF(payload: EcfFacturaPayload, config: EcfConfig): 
     }
   }
 
+  // Timeout para que una API lenta no cuelgue el guardado de la factura.
+  const controlador = new AbortController()
+  const temporizador = setTimeout(() => controlador.abort(), 20000)
   try {
     // TODO (al aprobar): ajustar `body` y el mapeo de la respuesta al formato
     // exacto del proveedor elegido. La forma real la entrega su documentación.
@@ -112,6 +115,7 @@ export async function emitirECF(payload: EcfFacturaPayload, config: EcfConfig): 
         'X-Ambiente': config.ambiente,
       },
       body: JSON.stringify(payload),
+      signal: controlador.signal,
     })
     const data: any = await resp.json().catch(() => ({}))
     if (!resp.ok) {
@@ -128,7 +132,12 @@ export async function emitirECF(payload: EcfFacturaPayload, config: EcfConfig): 
       mensaje: data.mensaje ?? null,
     }
   } catch (e) {
-    return { ok: false, estado: 'PENDIENTE', mensaje: 'No se pudo conectar con el emisor e-CF: ' + (e instanceof Error ? e.message : String(e)) }
+    const msg = (e instanceof Error && e.name === 'AbortError')
+      ? 'El emisor e-CF no respondió a tiempo (timeout).'
+      : 'No se pudo conectar con el emisor e-CF: ' + (e instanceof Error ? e.message : String(e))
+    return { ok: false, estado: 'PENDIENTE', mensaje: msg }
+  } finally {
+    clearTimeout(temporizador)
   }
 }
 

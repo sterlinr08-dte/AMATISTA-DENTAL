@@ -1,20 +1,20 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Save, Stethoscope, ArrowRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, Save, Stethoscope } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { Cliente, Empleado, Evolucion } from '../types'
+import { Cliente, Empleado, HistoriaEvolucion } from '../types'
 import { fechaCorta, hoyISO } from '../lib/format'
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
 import Modal from '../components/Modal'
 import SelectorPaciente from '../components/SelectorPaciente'
 
-const vacio = { fecha: hoyISO(), empleado_id: '', motivo: '', nota: '', proximo: '' }
+const vacio = { fecha: hoyISO(), empleado_id: '', motivo: '', diagnostico: '', procedimiento: '', indicaciones: '', notas: '' }
 
 export default function Evoluciones({ pacienteFijo }: { pacienteFijo?: string } = {}) {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [empleados, setEmpleados] = useState<Empleado[]>([])
   const [pacienteId, setPacienteId] = useState<string>(pacienteFijo ?? '')
-  const [items, setItems] = useState<Evolucion[]>([])
+  const [items, setItems] = useState<HistoriaEvolucion[]>([])
   const [cargando, setCargando] = useState(false)
 
   const [open, setOpen] = useState(false)
@@ -32,8 +32,8 @@ export default function Evoluciones({ pacienteFijo }: { pacienteFijo?: string } 
 
   async function cargar(pid: string) {
     setCargando(true)
-    const { data } = await supabase.from('evoluciones').select('*').eq('cliente_id', pid).order('fecha', { ascending: false }).order('created_at', { ascending: false })
-    setItems((data as Evolucion[]) ?? [])
+    const { data } = await supabase.from('historia_evoluciones').select('*').eq('cliente_id', pid).order('fecha', { ascending: false }).order('created_at', { ascending: false })
+    setItems((data as HistoriaEvolucion[]) ?? [])
     setCargando(false)
   }
   useEffect(() => {
@@ -50,33 +50,41 @@ export default function Evoluciones({ pacienteFijo }: { pacienteFijo?: string } 
     setForm({ ...vacio, fecha: hoyISO() })
     setOpen(true)
   }
-  function editar(e: Evolucion) {
+  function editar(e: HistoriaEvolucion) {
     setEditId(e.id)
-    setForm({ fecha: e.fecha, empleado_id: e.empleado_id ?? '', motivo: e.motivo ?? '', nota: e.nota, proximo: e.proximo ?? '' })
+    setForm({
+      fecha: e.fecha, empleado_id: e.empleado_id ?? '', motivo: e.motivo ?? '',
+      diagnostico: e.diagnostico ?? '', procedimiento: e.procedimiento ?? '',
+      indicaciones: e.indicaciones ?? '', notas: e.notas ?? '',
+    })
     setOpen(true)
   }
   async function guardar() {
-    if (!form.nota.trim()) return alert('Escribe la evolución (qué se hizo).')
+    if (!form.motivo.trim() && !form.procedimiento.trim() && !form.notas.trim()) {
+      return alert('Escribe al menos el motivo, el procedimiento o una nota.')
+    }
     setSaving(true)
     const payload = {
       cliente_id: pacienteId,
       empleado_id: form.empleado_id || null,
       fecha: form.fecha,
       motivo: form.motivo || null,
-      nota: form.nota.trim(),
-      proximo: form.proximo || null,
+      diagnostico: form.diagnostico || null,
+      procedimiento: form.procedimiento || null,
+      indicaciones: form.indicaciones || null,
+      notas: form.notas || null,
     }
     const { error } = editId
-      ? await supabase.from('evoluciones').update(payload).eq('id', editId)
-      : await supabase.from('evoluciones').insert(payload)
+      ? await supabase.from('historia_evoluciones').update(payload).eq('id', editId)
+      : await supabase.from('historia_evoluciones').insert(payload)
     setSaving(false)
     if (error) return alert('Error al guardar: ' + error.message)
     setOpen(false)
     cargar(pacienteId)
   }
-  async function eliminar(e: Evolucion) {
+  async function eliminar(e: HistoriaEvolucion) {
     if (!confirm('¿Eliminar esta evolución?')) return
-    await supabase.from('evoluciones').delete().eq('id', e.id)
+    await supabase.from('historia_evoluciones').delete().eq('id', e.id)
     cargar(pacienteId)
   }
 
@@ -127,12 +135,12 @@ export default function Evoluciones({ pacienteFijo }: { pacienteFijo?: string } 
                         <button onClick={() => eliminar(e)} className="rounded-lg p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600"><Trash2 size={15} /></button>
                       </div>
                     </div>
-                    {e.motivo && <p className="mt-1.5 text-sm font-semibold text-slate-700">Motivo: <span className="font-normal">{e.motivo}</span></p>}
-                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{e.nota}</p>
-                    {e.proximo && (
-                      <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                        <ArrowRight size={15} className="mt-0.5 shrink-0" /> <span><b>Próximo / indicaciones:</b> {e.proximo}</span>
-                      </p>
+                    {e.motivo && <p className="mt-1.5 text-sm text-slate-700"><b>Motivo:</b> {e.motivo}</p>}
+                    {e.diagnostico && <p className="mt-1 text-sm text-slate-700"><b>Diagnóstico:</b> {e.diagnostico}</p>}
+                    {e.procedimiento && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700"><b>Procedimiento:</b> {e.procedimiento}</p>}
+                    {e.notas && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{e.notas}</p>}
+                    {e.indicaciones && (
+                      <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800"><b>Indicaciones:</b> {e.indicaciones}</p>
                     )}
                   </div>
                 </div>
@@ -168,16 +176,24 @@ export default function Evoluciones({ pacienteFijo }: { pacienteFijo?: string } 
             </div>
           </div>
           <div>
-            <label className="label">Motivo de la visita (opcional)</label>
+            <label className="label">Motivo de la visita</label>
             <input className="input" value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })} placeholder="Ej. dolor en molar inferior derecho" />
           </div>
           <div>
-            <label className="label">Evolución — qué se hizo / hallazgos</label>
-            <textarea className="input" rows={5} value={form.nota} onChange={(e) => setForm({ ...form, nota: e.target.value })} placeholder="Descripción del tratamiento realizado, hallazgos, observaciones…" />
+            <label className="label">Diagnóstico</label>
+            <textarea className="input" rows={2} value={form.diagnostico} onChange={(e) => setForm({ ...form, diagnostico: e.target.value })} />
           </div>
           <div>
-            <label className="label">Próximo / indicaciones (opcional)</label>
-            <input className="input" value={form.proximo} onChange={(e) => setForm({ ...form, proximo: e.target.value })} placeholder="Ej. control en 1 semana, tomar analgésico si duele" />
+            <label className="label">Procedimiento realizado</label>
+            <textarea className="input" rows={3} value={form.procedimiento} onChange={(e) => setForm({ ...form, procedimiento: e.target.value })} placeholder="Qué se hizo en la visita" />
+          </div>
+          <div>
+            <label className="label">Indicaciones</label>
+            <input className="input" value={form.indicaciones} onChange={(e) => setForm({ ...form, indicaciones: e.target.value })} placeholder="Ej. control en 1 semana, analgésico si duele" />
+          </div>
+          <div>
+            <label className="label">Notas</label>
+            <textarea className="input" rows={2} value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} />
           </div>
         </div>
       </Modal>

@@ -355,6 +355,7 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   // Editar una factura ya guardada (solo PENDIENTE y con permiso)
   async function abrirEditar(f: Factura) {
     if (f.estado !== 'PENDIENTE') return alert('Solo se pueden editar facturas pendientes (aún no cobradas).')
+    if (f.ncf) return alert(`Esta factura ya tiene un comprobante fiscal (${f.ncf}) y no puede modificarse. Si necesitas cambiarla, anúlala y emite una nueva.`)
     const { data, error } = await supabase
       .from('factura_items')
       .select('*')
@@ -489,8 +490,12 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     }))
     const { error: e2 } = await supabase.from('factura_items').insert(payload)
     if (e2) {
+      // En una factura nueva, no dejar la cabecera sin renglones: se elimina.
+      if (!editId) await supabase.from('facturas').delete().eq('id', facturaId)
       setSaving(false)
-      return alert('Factura guardada pero falló el detalle: ' + e2.message)
+      return alert(!editId
+        ? 'No se pudo crear la factura (falló el detalle): ' + e2.message
+        : 'Error al actualizar el detalle: ' + e2.message)
     }
     // Descontar del stock los artículos vendidos
     for (const l of items) {
@@ -503,10 +508,13 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     if (!editId) {
       const planItemIds = items.map((l) => l.presupuesto_item_id).filter(Boolean) as string[]
       if (planItemIds.length > 0) {
-        await supabase
+        const { error: eMarcar } = await supabase
           .from('presupuesto_items')
           .update({ facturado: true, factura_id: facturaId })
           .in('id', planItemIds)
+        if (eMarcar) {
+          alert('Atención: la factura se guardó pero no se pudo marcar el tratamiento del plan como facturado. Avisa a administración para evitar un doble cobro.')
+        }
       }
     }
 
@@ -783,6 +791,10 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     if (devMetodo === 'Efectivo') {
       const { data: caja } = await supabase.from('caja_sesiones').select('id').eq('estado', 'ABIERTA').order('abierta_at', { ascending: false }).limit(1).maybeSingle()
       cajaId = (caja as any)?.id ?? null
+      if (!cajaId && !confirm('No hay una caja abierta, así que esta salida de efectivo NO quedará registrada en la caja (puede causar descuadre). ¿Continuar de todos modos?')) {
+        setSavingDev(false)
+        return
+      }
     }
     // Nota de crédito fiscal (si hay comprobantes activos y la factura tenía NCF)
     let notaDatos: Record<string, any> = {}
@@ -815,7 +827,12 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
         importe: Number(it.precio_unit) * cant,
       })),
     )
-    if (ei) { setSavingDev(false); return alert('Error al guardar el detalle: ' + ei.message) }
+    if (ei) {
+      // No dejar una devolución sin detalle (contaminaría el total devuelto de la factura).
+      await supabase.from('devoluciones').delete().eq('id', (dev as any).id)
+      setSavingDev(false)
+      return alert('No se pudo registrar la devolución (falló el detalle): ' + ei.message)
+    }
     // Reponer stock de los productos devueltos
     for (const { it, cant } of lineas) {
       if ((it as any).articulo_id) {

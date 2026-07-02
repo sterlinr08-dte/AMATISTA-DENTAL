@@ -205,7 +205,8 @@ export default function Citas() {
       fecha: fechaCorta(c.fecha),
       hora: hora(c.hora_inicio),
     }, negocio.wa_plantilla)
-    window.open(linkWhatsApp(tel, mensaje), '_blank')
+    const w = window.open(linkWhatsApp(tel, mensaje), '_blank')
+    if (!w) return alert('Permite las ventanas emergentes para abrir WhatsApp.')
     await supabase.from('citas').update({ recordatorio_estado: 'ENVIADO', recordatorio_enviado_at: new Date().toISOString() }).eq('id', c.id)
     cargar()
   }

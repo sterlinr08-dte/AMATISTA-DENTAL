@@ -301,19 +301,6 @@ export interface OrdenLaboratorio {
   created_at: string
 }
 
-// Evolución clínica: nota de lo realizado en una visita (línea de tiempo).
-export interface Evolucion {
-  id: string
-  cliente_id: string
-  empleado_id: string | null
-  cita_id: string | null
-  fecha: string
-  motivo: string | null
-  nota: string
-  proximo: string | null
-  created_at: string
-}
-
 // Control / Recall: recordatorio de que un paciente debe volver.
 export interface Control {
   id: string

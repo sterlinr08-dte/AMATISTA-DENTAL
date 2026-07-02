@@ -284,15 +284,21 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
     }))
     const { error: e2 } = await supabase.from('factura_items').insert(payload)
     if (e2) {
+      // No dejar una factura huérfana sin renglones: se elimina.
+      await supabase.from('facturas').delete().eq('id', facturaId)
       setConvirtiendo(false)
-      return alert('Factura creada pero falló el detalle: ' + e2.message)
+      return alert('No se pudo crear la factura (falló el detalle): ' + e2.message)
     }
 
     // Marcar esos tratamientos como facturados (para que el panel por visita no los reofrezca).
-    await supabase
+    const { error: eMarcar } = await supabase
       .from('presupuesto_items')
       .update({ facturado: true, factura_id: facturaId })
       .in('id', aFacturar.map((it: any) => it.id))
+    if (eMarcar) {
+      setConvirtiendo(false)
+      return alert('La factura se creó, pero no se pudo marcar el plan como facturado. Avisa a administración para evitar doble cobro: ' + eMarcar.message)
+    }
 
     const { error: e3 } = await supabase
       .from('presupuestos')
