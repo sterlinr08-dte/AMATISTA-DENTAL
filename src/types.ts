@@ -301,6 +301,19 @@ export interface OrdenLaboratorio {
   created_at: string
 }
 
+// Documento clínico imprimible (certificado, referimiento, órdenes…).
+export interface Documento {
+  id: string
+  cliente_id: string
+  empleado_id: string | null
+  tipo: string
+  fecha: string
+  titulo: string
+  destinatario: string | null
+  contenido: string | null
+  created_at: string
+}
+
 // Control / Recall: recordatorio de que un paciente debe volver.
 export interface Control {
   id: string

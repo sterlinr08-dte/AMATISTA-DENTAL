@@ -20,6 +20,7 @@ import Laboratorio from './Laboratorio'
 import Presupuestos from './Presupuestos'
 import Facturacion from './Facturacion'
 import Recetas from './Recetas'
+import Documentos from './Documentos'
 import Consentimientos from './Consentimientos'
 
 const BUCKET = 'pacientes'
@@ -52,7 +53,7 @@ function iniciales(nombre: string): string {
 
 type TabKey =
   | 'datos' | 'clinica' | 'evoluciones' | 'odonto' | 'perio' | 'radiografias' | 'laboratorio' | 'presupuestos'
-  | 'facturacion' | 'imagenes' | 'recetas' | 'consentimientos'
+  | 'facturacion' | 'imagenes' | 'recetas' | 'documentos' | 'consentimientos'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'datos', label: 'Datos personales' },
@@ -66,6 +67,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'facturacion', label: 'Facturación' },
   { key: 'imagenes', label: 'Imágenes / Rx' },
   { key: 'recetas', label: 'Recetas' },
+  { key: 'documentos', label: 'Documentos' },
   { key: 'consentimientos', label: 'Consentimientos' },
 ]
 
@@ -242,6 +244,7 @@ export default function FichaPaciente() {
             {tab === 'presupuestos' && <Presupuestos pacienteFijo={pacienteId} />}
             {tab === 'facturacion' && <Facturacion pacienteFijo={pacienteId} />}
             {tab === 'recetas' && <Recetas pacienteFijo={pacienteId} />}
+            {tab === 'documentos' && <Documentos pacienteFijo={pacienteId} />}
             {tab === 'consentimientos' && <Consentimientos pacienteFijo={pacienteId} />}
           </div>
         </div>

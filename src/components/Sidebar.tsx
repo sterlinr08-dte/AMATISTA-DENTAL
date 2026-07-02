@@ -48,6 +48,7 @@ const grupos: { titulo: string; links: Link[] }[] = [
       { to: '/historia', label: 'Historia clínica', icon: HeartPulse, modulo: 'historia', oculto: true },
       { to: '/imagenes', label: 'Imágenes / Radiografías', icon: Image, modulo: 'imagenes', oculto: true },
       { to: '/recetas', label: 'Recetas', icon: Pill, modulo: 'recetas', oculto: true },
+      { to: '/documentos', label: 'Documentos', icon: FileText, modulo: 'documentos', oculto: true },
       { to: '/consentimientos', label: 'Consentimientos', icon: PenLine, modulo: 'consentimientos', oculto: true },
       { to: '/presupuestos', label: 'Presupuestos', icon: FileText, modulo: 'presupuestos', oculto: true },
       { to: '/seguimiento', label: 'Seguimiento de planes', icon: ClipboardCheck, modulo: 'seguimiento' },
