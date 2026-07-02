@@ -26,6 +26,7 @@ import {
   Armchair,
   HandCoins,
   FileBarChart,
+  Gauge,
   X,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
@@ -65,6 +66,7 @@ const grupos: { titulo: string; links: Link[] }[] = [
       { to: '/gastos', label: 'Gastos', icon: Wallet, modulo: 'gastos' },
       { to: '/nomina', label: 'Pagos a empleados', icon: Users, modulo: 'nomina' },
       { to: '/contabilidad', label: 'Contabilidad', icon: Calculator, modulo: 'contabilidad' },
+      { to: '/indicadores', label: 'Indicadores', icon: Gauge, modulo: 'indicadores' },
       { to: '/reportes', label: 'Reportes', icon: FileBarChart, modulo: 'reportes' },
       { to: '/articulos', label: 'Artículos / Insumos', icon: Package, modulo: 'articulos' },
       { to: '/mobiliario', label: 'Mobiliario y equipos', icon: Armchair, modulo: 'mobiliario' },
