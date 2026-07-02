@@ -21,6 +21,7 @@ export const MODULOS: Modulo[] = [
   { key: 'alertas', label: 'Alertas', path: '/alertas' },
   { key: 'seguimiento', label: 'Seguimiento de planes', path: '/seguimiento' },
   { key: 'controles', label: 'Controles / Recall', path: '/controles' },
+  { key: 'laboratorio', label: 'Laboratorio', path: '/laboratorio' },
   { key: 'servicios', label: 'Tratamientos y precios', path: '/servicios' },
   { key: 'articulos', label: 'Artículos / Productos', path: '/articulos' },
   { key: 'mobiliario', label: 'Mobiliario y equipos', path: '/mobiliario' },

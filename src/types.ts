@@ -280,6 +280,27 @@ export interface SecuenciaNcf {
   updated_at: string
 }
 
+// Orden de trabajo al laboratorio dental (corona, prótesis, férula…).
+export interface OrdenLaboratorio {
+  id: string
+  numero: number
+  cliente_id: string
+  empleado_id: string | null
+  laboratorio: string | null
+  tipo_trabajo: string
+  descripcion: string | null
+  dientes: string | null
+  color: string | null
+  estado: 'SOLICITADA' | 'ENVIADA' | 'EN_PROCESO' | 'RECIBIDA' | 'ENTREGADA' | 'CANCELADA'
+  fecha_solicitud: string
+  fecha_envio: string | null
+  fecha_estimada: string | null
+  fecha_recibido: string | null
+  costo: number
+  notas: string | null
+  created_at: string
+}
+
 // Evolución clínica: nota de lo realizado en una visita (línea de tiempo).
 export interface Evolucion {
   id: string
