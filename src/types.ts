@@ -64,6 +64,8 @@ export interface Cita {
   estado: EstadoCita
   precio: number
   notas: string | null
+  recordatorio_estado: 'PENDIENTE' | 'ENVIADO' | 'CONFIRMADA'
+  recordatorio_enviado_at: string | null
   created_at: string
   updated_at: string
 }

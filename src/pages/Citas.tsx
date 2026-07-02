@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Plus, Pencil, Trash2, CalendarDays, Clock, Receipt } from 'lucide-react'
+import { Plus, Pencil, Trash2, CalendarDays, Clock, Receipt, MessageCircle, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { CitaConRelaciones, Cliente, Empleado, EstadoCita, Servicio } from '../types'
-import { hora, money, fechaLarga, hoyISO, codigoFactura, conPrefijo } from '../lib/format'
+import { hora, money, fechaLarga, fechaCorta, hoyISO, codigoFactura, conPrefijo } from '../lib/format'
+import { construirMensajeCita, linkWhatsApp } from '../lib/mensajeria'
 import { useAuth } from '../lib/auth'
 import { useNegocio } from '../lib/negocio'
 import PageHeader from '../components/PageHeader'
@@ -194,6 +195,27 @@ export default function Citas() {
     cargar()
   }
 
+  // Recordatorio por WhatsApp (abre el chat con el mensaje listo y marca "ENVIADO")
+  async function enviarRecordatorio(c: CitaConRelaciones) {
+    const tel = c.cliente?.telefono
+    if (!tel) return alert('Este paciente no tiene teléfono registrado.')
+    const mensaje = construirMensajeCita({
+      paciente: c.cliente?.nombre ?? 'paciente',
+      clinica: negocio.nombre,
+      fecha: fechaCorta(c.fecha),
+      hora: hora(c.hora_inicio),
+    }, negocio.wa_plantilla)
+    window.open(linkWhatsApp(tel, mensaje), '_blank')
+    await supabase.from('citas').update({ recordatorio_estado: 'ENVIADO', recordatorio_enviado_at: new Date().toISOString() }).eq('id', c.id)
+    cargar()
+  }
+
+  // Marca la cita como confirmada por el paciente
+  async function confirmarCita(c: CitaConRelaciones) {
+    await supabase.from('citas').update({ recordatorio_estado: 'CONFIRMADA', estado: c.estado === 'PENDIENTE' ? 'CONFIRMADA' : c.estado }).eq('id', c.id)
+    cargar()
+  }
+
   async function eliminar(c: CitaConRelaciones) {
     if (!confirm('¿Eliminar esta cita?')) return
     const { error } = await supabase.from('citas').delete().eq('id', c.id)
@@ -266,6 +288,14 @@ export default function Citas() {
         subtitle={fechaLarga(fecha)}
         action={
           <div className="flex items-center gap-2">
+            <button className="btn-ghost" onClick={() => setFecha(hoyISO())} title="Ir a hoy">Hoy</button>
+            <button
+              className="btn-ghost"
+              title="Ver y recordar las citas de mañana"
+              onClick={() => { const d = new Date(); d.setDate(d.getDate() + 1); const off = d.getTimezoneOffset(); setFecha(new Date(d.getTime() - off * 60000).toISOString().slice(0, 10)) }}
+            >
+              Mañana
+            </button>
             <input type="date" className="input w-auto" value={fecha} onChange={(e) => setFecha(e.target.value)} />
             <button className="btn-primary" onClick={() => abrirNuevo()}>
               <Plus size={16} /> Nueva cita
@@ -321,6 +351,30 @@ export default function Citas() {
                   </option>
                 ))}
               </select>
+
+              {/* Recordatorio por WhatsApp */}
+              {c.estado !== 'CANCELADA' && (
+                <div className="flex items-center gap-1">
+                  {c.recordatorio_estado === 'CONFIRMADA' ? (
+                    <span className="badge inline-flex items-center gap-1 bg-emerald-50 text-emerald-700"><Check size={13} /> Confirmada</span>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => enviarRecordatorio(c)}
+                        title="Recordar por WhatsApp"
+                        className="inline-flex items-center gap-1 rounded-lg bg-[#25D366]/10 px-2.5 py-1.5 text-xs font-semibold text-[#128C4B] hover:bg-[#25D366]/20"
+                      >
+                        <MessageCircle size={15} /> {c.recordatorio_estado === 'ENVIADO' ? 'Reenviar' : 'Recordar'}
+                      </button>
+                      {c.recordatorio_estado === 'ENVIADO' && (
+                        <button onClick={() => confirmarCita(c)} title="Marcar como confirmada" className="rounded-lg p-1.5 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600">
+                          <Check size={16} />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               <div className="flex gap-1">
                 {c.estado !== 'CANCELADA' && (

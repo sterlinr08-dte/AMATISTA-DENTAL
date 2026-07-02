@@ -33,6 +33,8 @@ export interface Negocio {
   prefijo_proveedor: string
   prefijo_articulo: string
   prefijo_mobiliario: string
+  // Recordatorios de citas (WhatsApp)
+  wa_plantilla: string
 }
 
 const DEFAULTS: Negocio = {
@@ -46,6 +48,7 @@ const DEFAULTS: Negocio = {
   ecf_api_token: '',
   ecf_ambiente: 'prueba',
   ecf_emision_auto: false,
+  wa_plantilla: '',
 }
 
 interface NegocioContextValue {
@@ -83,6 +86,7 @@ export function NegocioProvider({ children }: { children: ReactNode }) {
         ecf_api_token: data.ecf_api_token ?? '',
         ecf_ambiente: (data.ecf_ambiente === 'produccion' ? 'produccion' : 'prueba'),
         ecf_emision_auto: data.ecf_emision_auto ?? false,
+        wa_plantilla: data.wa_plantilla ?? '',
         prefijo_caja: data.prefijo_caja ?? DEFAULTS.prefijo_caja,
         prefijo_gasto: data.prefijo_gasto ?? DEFAULTS.prefijo_gasto,
         prefijo_pago: data.prefijo_pago ?? DEFAULTS.prefijo_pago,

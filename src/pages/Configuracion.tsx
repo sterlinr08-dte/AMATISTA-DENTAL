@@ -75,7 +75,7 @@ export default function Configuracion() {
   const pagProv = usePaginacion(proveedores, 10)
 
   // datos del negocio
-  const [formNeg, setFormNeg] = useState({ nombre: '', direccion: '', referencia: '', telefono: '', whatsapp: '', instagram: '', rnc: '', razon_social: '', comprobantes_activos: false, modo_comprobante: 'tradicional' as 'tradicional' | 'electronico', ecf_proveedor: '', ecf_api_url: '', ecf_api_token: '', ecf_ambiente: 'prueba' as 'prueba' | 'produccion', ecf_emision_auto: false, ancho_ticket: 58, auto_imprimir: true, ...PREFIJOS_DEFAULT })
+  const [formNeg, setFormNeg] = useState({ nombre: '', direccion: '', referencia: '', telefono: '', whatsapp: '', instagram: '', rnc: '', razon_social: '', comprobantes_activos: false, modo_comprobante: 'tradicional' as 'tradicional' | 'electronico', ecf_proveedor: '', ecf_api_url: '', ecf_api_token: '', ecf_ambiente: 'prueba' as 'prueba' | 'produccion', ecf_emision_auto: false, wa_plantilla: '', ancho_ticket: 58, auto_imprimir: true, ...PREFIJOS_DEFAULT })
   const [savingNeg, setSavingNeg] = useState(false)
 
   // comprobantes fiscales (secuencias NCF / e-CF)
@@ -136,6 +136,7 @@ export default function Configuracion() {
       ecf_api_token: neg.ecf_api_token ?? '',
       ecf_ambiente: (neg.ecf_ambiente === 'produccion' ? 'produccion' : 'prueba'),
       ecf_emision_auto: neg.ecf_emision_auto ?? false,
+      wa_plantilla: neg.wa_plantilla ?? '',
       ancho_ticket: Number(neg.ancho_ticket ?? 58),
       auto_imprimir: neg.auto_imprimir ?? true,
       prefijo_caja: neg.prefijo_caja ?? PREFIJOS_DEFAULT.prefijo_caja,
@@ -589,6 +590,21 @@ export default function Configuracion() {
               <input className="input" value={formNeg.referencia} onChange={(e) => setFormNeg({ ...formNeg, referencia: e.target.value })} placeholder="Ej: Frente a Banco Popular" />
             </div>
             <p className="text-xs text-slate-600">Estos datos aparecen en los tickets de cobro, facturas, comprobantes de cierre, el panel y el inicio de sesión. La configuración de impresora está en la pestaña <b>Impresora</b>.</p>
+
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
+              <label className="label">Mensaje de recordatorio de cita (WhatsApp)</label>
+              <textarea
+                className="input"
+                rows={3}
+                value={formNeg.wa_plantilla}
+                onChange={(e) => setFormNeg({ ...formNeg, wa_plantilla: e.target.value })}
+                placeholder="Hola {paciente} 👋, le recordamos su cita en {clinica} el {fecha} a las {hora}. Por favor confirme respondiendo *Sí*. ¡Gracias!"
+              />
+              <p className="mt-1 text-xs text-slate-600">
+                Usa <b>{'{paciente}'}</b>, <b>{'{clinica}'}</b>, <b>{'{fecha}'}</b> y <b>{'{hora}'}</b>; se reemplazan solos. Si lo dejas vacío, se usa un mensaje por defecto.
+              </p>
+            </div>
+
             <div className="flex justify-end">
               <button className="btn-primary" onClick={guardarNegocio} disabled={savingNeg}>{savingNeg ? 'Guardando…' : 'Guardar cambios'}</button>
             </div>
