@@ -430,30 +430,25 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
       notas: notas || null,
     }
 
-    // Comprobante fiscal DGII (solo facturas nuevas, si está activo)
-    let ncfDatos: Record<string, any> = {}
+    // Tipo de comprobante fiscal para la factura NUEVA (si está activo).
+    let tipoComp: string | null = null
+    let compRnc: string | null = null
+    let compRazon: string | null = null
     if (!editId && negocio.comprobantes_activos) {
       if (tipoComprobante === 'credito' && !compradorRnc.trim()) {
         setSaving(false)
         return alert('Para Crédito Fiscal debes indicar el RNC/cédula del comprador.')
       }
-      const tipo = CODIGO_COMPROBANTE[tipoComprobante][negocio.modo_comprobante]
-      const { data: ncf, error: eNcf } = await supabase.rpc('siguiente_ncf', { p_tipo: tipo })
-      if (eNcf || !ncf) {
-        setSaving(false)
-        return alert('No se pudo asignar el comprobante fiscal (' + tipo + '): ' + (eNcf?.message || 'sin número disponible') + '.\n\nRevisa la secuencia en Configuración → Comprobantes DGII.')
-      }
-      ncfDatos = {
-        ncf,
-        tipo_comprobante: tipo,
-        comprador_rnc: compradorRnc.trim() || null,
-        comprador_razon_social: compradorRazon.trim() || (tipoComprobante === 'credito' ? (clientes.find((c) => c.id === clienteId)?.nombre ?? null) : null),
-      }
+      tipoComp = CODIGO_COMPROBANTE[tipoComprobante][negocio.modo_comprobante]
+      compRnc = compradorRnc.trim() || null
+      compRazon = compradorRazon.trim() || (tipoComprobante === 'credito' ? (clientes.find((c) => c.id === clienteId)?.nombre ?? null) : null)
     }
 
     let facturaId = editId
+    let facturaNueva: Factura | null = null
+
     if (editId) {
-      // Editar: devolver el stock anterior, actualizar y reinsertar el detalle
+      // Editar: devolver el stock anterior, actualizar y reinsertar el detalle.
       await restaurarStock(editId)
       const { error } = await supabase.from('facturas').update(datos).eq('id', editId)
       if (error) {
@@ -465,68 +460,70 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
         setSaving(false)
         return alert('Error al actualizar el detalle: ' + eDel.message)
       }
-    } else {
-      const { data: factura, error } = await supabase
-        .from('facturas')
-        .insert({ ...datos, ...ncfDatos, estado: 'PENDIENTE', metodo_pago: null })
-        .select()
-        .single()
-      if (error || !factura) {
+      const payload = items.map((l) => ({
+        factura_id: editId,
+        servicio_id: l.servicio_id || null,
+        articulo_id: l.articulo_id || null,
+        empleado_id: l.empleado_id || null,
+        descripcion: l.descripcion,
+        cantidad: l.cantidad,
+        precio_unit: l.precio_unit,
+        importe: l.cantidad * l.precio_unit,
+      }))
+      const { error: e2 } = await supabase.from('factura_items').insert(payload)
+      if (e2) {
         setSaving(false)
-        return alert('Error al crear factura: ' + error?.message)
+        return alert('Error al actualizar el detalle: ' + e2.message)
       }
-      facturaId = factura.id
-    }
-
-    const payload = items.map((l) => ({
-      factura_id: facturaId,
-      servicio_id: l.servicio_id || null,
-      articulo_id: l.articulo_id || null,
-      empleado_id: l.empleado_id || null,
-      descripcion: l.descripcion,
-      cantidad: l.cantidad,
-      precio_unit: l.precio_unit,
-      importe: l.cantidad * l.precio_unit,
-    }))
-    const { error: e2 } = await supabase.from('factura_items').insert(payload)
-    if (e2) {
-      // En una factura nueva, no dejar la cabecera sin renglones: se elimina.
-      if (!editId) await supabase.from('facturas').delete().eq('id', facturaId)
-      setSaving(false)
-      return alert(!editId
-        ? 'No se pudo crear la factura (falló el detalle): ' + e2.message
-        : 'Error al actualizar el detalle: ' + e2.message)
-    }
-    // Descontar del stock los artículos vendidos
-    for (const l of items) {
-      if (l.articulo_id) {
-        await supabase.rpc('ajustar_stock', { p_articulo: l.articulo_id, p_delta: -l.cantidad })
+      for (const l of items) {
+        if (l.articulo_id) await supabase.rpc('ajustar_stock', { p_articulo: l.articulo_id, p_delta: -l.cantidad })
       }
-    }
-    // Marcar como facturados los tratamientos realizados del plan que se incluyeron
-    // (solo en facturas nuevas), para que no se vuelvan a ofrecer.
-    if (!editId) {
-      const planItemIds = items.map((l) => l.presupuesto_item_id).filter(Boolean) as string[]
-      if (planItemIds.length > 0) {
-        const { error: eMarcar } = await supabase
-          .from('presupuesto_items')
-          .update({ facturado: true, factura_id: facturaId })
-          .in('id', planItemIds)
-        if (eMarcar) {
-          alert('Atención: la factura se guardó pero no se pudo marcar el tratamiento del plan como facturado. Avisa a administración para evitar un doble cobro.')
-        }
+    } else {
+      // NUEVA: todo en UNA sola transacción del servidor (factura + ítems + NCF +
+      // stock + marcado del plan). Si algo falla, se revierte todo: nada a medias
+      // y el NCF fiscal no se consume.
+      const itemsPayload = items.map((l) => ({
+        servicio_id: l.servicio_id || null,
+        articulo_id: l.articulo_id || null,
+        empleado_id: l.empleado_id || null,
+        descripcion: l.descripcion,
+        cantidad: l.cantidad,
+        precio_unit: l.precio_unit,
+        importe: l.cantidad * l.precio_unit,
+        presupuesto_item_id: l.presupuesto_item_id || null,
+      }))
+      const { data: fact, error } = await supabase.rpc('crear_factura', {
+        p_cliente_id: datos.cliente_id,
+        p_cliente_nombre: datos.cliente_nombre,
+        p_fecha: datos.fecha,
+        p_tipo_venta: datos.tipo_venta,
+        p_subtotal: subtotal,
+        p_descuento: descuentoMonto,
+        p_itbis: itbis,
+        p_total: total,
+        p_notas: datos.notas,
+        p_items: itemsPayload,
+        p_tipo_comprobante: tipoComp,
+        p_comprador_rnc: compRnc,
+        p_comprador_razon_social: compRazon,
+      })
+      if (error || !fact) {
+        setSaving(false)
+        return alert('No se pudo crear la factura: ' + (error?.message || 'error desconocido') + (tipoComp ? '\n\nSi es por el comprobante fiscal, revisa la secuencia en Configuración → Comprobantes DGII.' : ''))
       }
+      facturaNueva = fact as Factura
+      facturaId = (fact as Factura).id
     }
 
     // e-CF: si es factura electrónica nueva con e-NCF, registrar/enviar el comprobante.
-    if (!editId && ncfDatos.ncf && negocio.modo_comprobante === 'electronico') {
+    if (facturaNueva?.ncf && negocio.modo_comprobante === 'electronico') {
       const payload: EcfFacturaPayload = {
-        encf: ncfDatos.ncf,
-        tipo: ncfDatos.tipo_comprobante,
+        encf: facturaNueva.ncf,
+        tipo: facturaNueva.tipo_comprobante ?? '',
         rnc_emisor: negocio.rnc,
         razon_social_emisor: negocio.razon_social || negocio.nombre,
-        rnc_comprador: ncfDatos.comprador_rnc ?? null,
-        razon_social_comprador: ncfDatos.comprador_razon_social ?? null,
+        rnc_comprador: facturaNueva.comprador_rnc ?? null,
+        razon_social_comprador: facturaNueva.comprador_razon_social ?? null,
         fecha: datos.fecha,
         subtotal,
         descuento: descuentoMonto,
