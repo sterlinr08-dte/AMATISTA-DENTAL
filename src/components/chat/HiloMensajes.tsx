@@ -126,12 +126,13 @@ export default function HiloMensajes({ conversacionId, miId, usuarios, onActivid
     }
 
     const mencionados = detectarMenciones(t, listaUsuarios)
-    const { error } = await supabase.from('chat_mensajes').insert({
+    const { data, error } = await supabase.from('chat_mensajes').insert({
       conversacion_id: conversacionId, autor_id: miId, texto: t,
       responde_a: respondiendo?.id ?? null, mencionados,
-    })
+    }).select().single()
     setEnviando(false)
     if (error) return alert('No se pudo enviar: ' + error.message)
+    if (data) { const m = data as ChatMensaje; setMensajes((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m])); onActividad?.() }
     setTexto(''); setRespondiendo(null); setRapidas(false)
   }
 
@@ -140,13 +141,14 @@ export default function HiloMensajes({ conversacionId, miId, usuarios, onActivid
     const path = `${conversacionId}/${Date.now()}-${file.name.replace(/[^\w.\-]/g, '_')}`
     const { error: eUp } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false })
     if (eUp) { setEnviando(false); return alert('No se pudo subir: ' + eUp.message) }
-    const { error } = await supabase.from('chat_mensajes').insert({
+    const { data, error } = await supabase.from('chat_mensajes').insert({
       conversacion_id: conversacionId, autor_id: miId, texto: null,
       adjunto_url: path, adjunto_nombre: file.name, adjunto_tipo: file.type || 'application/octet-stream',
       responde_a: respondiendo?.id ?? null,
-    })
+    }).select().single()
     setEnviando(false)
     if (error) return alert('No se pudo enviar el archivo: ' + error.message)
+    if (data) { const m = data as ChatMensaje; setMensajes((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m])); onActividad?.() }
     setRespondiendo(null)
   }
 
