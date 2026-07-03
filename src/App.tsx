@@ -33,6 +33,7 @@ import Contabilidad from './pages/Contabilidad'
 import Reportes from './pages/Reportes'
 import Indicadores from './pages/Indicadores'
 import Chat from './pages/Chat'
+import Tareas from './pages/Tareas'
 import Configuracion from './pages/Configuracion'
 import Cargando from './components/Cargando'
 import CampanaNotificaciones from './components/CampanaNotificaciones'
@@ -138,6 +139,7 @@ export default function App() {
               <Route path="/reportes" element={<Protegido modulo="reportes"><Reportes /></Protegido>} />
               <Route path="/indicadores" element={<Protegido modulo="indicadores"><Indicadores /></Protegido>} />
               <Route path="/chat" element={<Protegido modulo="chat"><Chat /></Protegido>} />
+              <Route path="/tareas" element={<Protegido modulo="tareas"><Tareas /></Protegido>} />
               <Route path="/configuracion" element={<Protegido modulo="configuracion"><Configuracion /></Protegido>} />
             </Routes>
           </div>

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { ChatUsuario } from '../lib/chat'
 import HiloMensajes from '../components/chat/HiloMensajes'
+import TareaModal from '../components/TareaModal'
 import Cargando from '../components/Cargando'
 
 // Pestaña "Conversación del Caso" dentro de la ficha del paciente (Fase 3).
@@ -14,6 +15,7 @@ export default function ConversacionCaso({ pacienteFijo }: { pacienteFijo?: stri
   const [convId, setConvId] = useState<string | null>(null)
   const [usuarios, setUsuarios] = useState<Record<string, ChatUsuario>>({})
   const [error, setError] = useState<string | null>(null)
+  const [tareaTitulo, setTareaTitulo] = useState<string | null>(null)
 
   useEffect(() => {
     if (!pacienteFijo || !perfil) return
@@ -45,7 +47,10 @@ export default function ConversacionCaso({ pacienteFijo }: { pacienteFijo?: stri
         <MessagesSquare size={16} />
         <span>Conversación del equipo sobre este paciente. Todo queda registrado de forma permanente.</span>
       </div>
-      <HiloMensajes conversacionId={convId} miId={miId} usuarios={usuarios} alto="h-[62vh]" />
+      <HiloMensajes conversacionId={convId} miId={miId} usuarios={usuarios} alto="h-[62vh]"
+        onCrearTarea={(t) => setTareaTitulo(t ?? '')} />
+      <TareaModal open={tareaTitulo !== null} tituloInicial={tareaTitulo ?? ''}
+        contexto={{ conversacion_id: convId, cliente_id: pacienteFijo }} onClose={() => setTareaTitulo(null)} />
     </div>
   )
 }

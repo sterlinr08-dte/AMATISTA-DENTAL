@@ -29,6 +29,7 @@ import {
   FileBarChart,
   Gauge,
   MessagesSquare,
+  ListChecks,
   X,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
@@ -45,6 +46,7 @@ const grupos: { titulo: string; links: Link[] }[] = [
       { to: '/clientes', label: 'Pacientes', icon: Users, modulo: 'clientes' },
       { to: '/ficha', label: 'Ficha del paciente', icon: IdCard, modulo: 'ficha' },
       { to: '/chat', label: 'Chat interno', icon: MessagesSquare, modulo: 'chat' },
+      { to: '/tareas', label: 'Tareas', icon: ListChecks, modulo: 'tareas' },
       // Se trabajan desde la ficha del paciente; ocultos del menú para dejarlo más limpio.
       { to: '/odontograma', label: 'Odontograma', icon: Smile, modulo: 'odontograma', oculto: true },
       { to: '/periodontograma', label: 'Periodontograma', icon: Ruler, modulo: 'periodontograma', oculto: true },

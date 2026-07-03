@@ -12,6 +12,7 @@ export const MODULOS: Modulo[] = [
   { key: 'clientes', label: 'Pacientes', path: '/clientes' },
   { key: 'ficha', label: 'Ficha del paciente', path: '/ficha' },
   { key: 'chat', label: 'Chat interno', path: '/chat' },
+  { key: 'tareas', label: 'Tareas', path: '/tareas' },
   { key: 'odontograma', label: 'Odontograma', path: '/odontograma' },
   { key: 'historia', label: 'Historia clínica', path: '/historia' },
   { key: 'presupuestos', label: 'Presupuestos', path: '/presupuestos' },

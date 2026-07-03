@@ -6,6 +6,8 @@ import { useAuth } from '../lib/auth'
 import PageHeader from '../components/PageHeader'
 import Modal from '../components/Modal'
 import HiloMensajes from '../components/chat/HiloMensajes'
+import TareaModal from '../components/TareaModal'
+import { ContextoTarea } from '../lib/tareas'
 import {
   ChatUsuario, ConversacionResumen, DEPARTAMENTOS,
   inicialesChat, colorAvatar, cuandoChat, vistaPrevia, nombreUsuario, nombreDepartamento,
@@ -26,6 +28,7 @@ export default function Chat() {
   const [cargando, setCargando] = useState(true)
 
   const [modalNuevo, setModalNuevo] = useState<null | 'directo' | 'grupo' | 'depto'>(null)
+  const [tareaCtx, setTareaCtx] = useState<{ ctx: ContextoTarea; titulo: string } | null>(null)
 
   // --- Datos base ------------------------------------------------------
   const cargarConvs = useCallback(async () => {
@@ -198,7 +201,8 @@ export default function Chat() {
                 </div>
               </div>
               <div className="flex-1 p-2 sm:p-3">
-                <HiloMensajes conversacionId={convSel.id} miId={miId} usuarios={usuarios} onActividad={cargarConvs} alto="h-full" />
+                <HiloMensajes conversacionId={convSel.id} miId={miId} usuarios={usuarios} onActividad={cargarConvs} alto="h-full"
+                  onCrearTarea={(titulo) => setTareaCtx({ titulo: titulo ?? '', ctx: { conversacion_id: convSel.id, cliente_id: convSel.cliente_id, presupuesto_id: convSel.presupuesto_id } })} />
               </div>
             </>
           )}
@@ -224,6 +228,8 @@ export default function Chat() {
 
       <ModalGrupo open={modalNuevo === 'grupo'} usuarios={listaUsuarios} onClose={() => setModalNuevo(null)}
         onCreado={async (id) => { setModalNuevo(null); await cargarConvs(); setSel(id) }} />
+
+      <TareaModal open={!!tareaCtx} tituloInicial={tareaCtx?.titulo} contexto={tareaCtx?.ctx} onClose={() => setTareaCtx(null)} />
     </div>
   )
 }

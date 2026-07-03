@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Send, Paperclip, Zap, X, Trash2, Pencil, Check, CheckCheck, CornerUpLeft, FileText } from 'lucide-react'
+import { Send, Paperclip, Zap, X, Trash2, Pencil, Check, CheckCheck, CornerUpLeft, FileText, ListPlus } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { setConversacionActiva } from '../../lib/chatActivo'
 import {
@@ -14,10 +14,11 @@ interface Props {
   miId: string
   usuarios: Record<string, ChatUsuario>
   onActividad?: () => void
+  onCrearTarea?: (tituloInicial?: string) => void
   alto?: string // p.ej. 'h-[70vh]'
 }
 
-export default function HiloMensajes({ conversacionId, miId, usuarios, onActividad, alto = 'h-[68vh]' }: Props) {
+export default function HiloMensajes({ conversacionId, miId, usuarios, onActividad, onCrearTarea, alto = 'h-[68vh]' }: Props) {
   const [mensajes, setMensajes] = useState<ChatMensaje[]>([])
   const [participantes, setParticipantes] = useState<ChatParticipante[]>([])
   const [cargando, setCargando] = useState(true)
@@ -224,6 +225,7 @@ export default function HiloMensajes({ conversacionId, miId, usuarios, onActivid
                     {!m.eliminado && (
                       <div className={`absolute top-1 ${mio ? 'left-1' : 'right-1'} hidden gap-0.5 group-hover:flex`}>
                         <button title="Responder" onClick={() => { setRespondiendo(m); setEditando(null) }} className="rounded bg-white/90 p-1 text-slate-500 shadow ring-1 ring-slate-200 hover:text-amber-600"><CornerUpLeft size={12} /></button>
+                        {onCrearTarea && m.texto && <button title="Convertir en tarea" onClick={() => onCrearTarea(m.texto ?? '')} className="rounded bg-white/90 p-1 text-slate-500 shadow ring-1 ring-slate-200 hover:text-amber-600"><ListPlus size={12} /></button>}
                         {mio && m.texto && <button title="Editar" onClick={() => { setEditando(m); setTexto(m.texto ?? ''); setRespondiendo(null) }} className="rounded bg-white/90 p-1 text-slate-500 shadow ring-1 ring-slate-200 hover:text-amber-600"><Pencil size={12} /></button>}
                         {mio && <button title="Eliminar" onClick={() => borrar(m)} className="rounded bg-white/90 p-1 text-slate-500 shadow ring-1 ring-slate-200 hover:text-rose-600"><Trash2 size={12} /></button>}
                       </div>
@@ -268,6 +270,7 @@ export default function HiloMensajes({ conversacionId, miId, usuarios, onActivid
       <div className="flex items-end gap-2 border-t border-slate-200 bg-white px-2.5 py-2">
         <button onClick={() => setRapidas((v) => !v)} title="Respuestas rápidas" className={`shrink-0 rounded-lg p-2 ${rapidas ? 'bg-amber-100 text-amber-700' : 'text-slate-500 hover:bg-slate-100'}`}><Zap size={18} /></button>
         <button onClick={() => fileRef.current?.click()} title="Adjuntar" className="shrink-0 rounded-lg p-2 text-slate-500 hover:bg-slate-100"><Paperclip size={18} /></button>
+        {onCrearTarea && <button onClick={() => onCrearTarea('')} title="Crear tarea" className="shrink-0 rounded-lg p-2 text-slate-500 hover:bg-slate-100"><ListPlus size={18} /></button>}
         <input ref={fileRef} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) subirAdjunto(f); e.target.value = '' }} />
         <textarea
           rows={1}
