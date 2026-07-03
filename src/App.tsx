@@ -35,6 +35,7 @@ import Indicadores from './pages/Indicadores'
 import Chat from './pages/Chat'
 import Configuracion from './pages/Configuracion'
 import Cargando from './components/Cargando'
+import CampanaNotificaciones from './components/CampanaNotificaciones'
 import { useAuth } from './lib/auth'
 import { MODULOS } from './lib/permisos'
 
@@ -97,6 +98,9 @@ export default function App() {
             className="h-9 w-9 rounded-lg bg-white object-contain p-0.5 shadow-[0_4px_10px_-3px_rgba(0,0,0,0.4),inset_0_1px_0_#fff] ring-1 ring-white/60"
           />
           <span className="text-lg font-semibold tracking-wide text-white [text-shadow:0_1px_2px_rgba(120,90,10,0.45)]">Amatista Dental</span>
+          <div className="ml-auto">
+            <CampanaNotificaciones />
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto">

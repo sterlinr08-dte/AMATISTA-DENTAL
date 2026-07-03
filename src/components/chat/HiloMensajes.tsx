@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Send, Paperclip, Zap, X, Trash2, Pencil, Check, CheckCheck, CornerUpLeft, FileText } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { setConversacionActiva } from '../../lib/chatActivo'
 import {
   ChatMensaje, ChatParticipante, ChatUsuario, RESPUESTAS_RAPIDAS,
   inicialesChat, colorAvatar, horaChat, diaChat, detectarMenciones, nombreUsuario,
@@ -74,7 +75,8 @@ export default function HiloMensajes({ conversacionId, miId, usuarios, onActivid
       .subscribe()
     canalRef.current = canal
 
-    return () => { vivo = false; supabase.removeChannel(canal) }
+    setConversacionActiva(conversacionId)
+    return () => { vivo = false; setConversacionActiva(null); supabase.removeChannel(canal) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversacionId, miId])
 
