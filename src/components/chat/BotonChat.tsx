@@ -15,7 +15,7 @@ export function BurbujaChat({ onClick }: { onClick: () => void }) {
       {n > 0 && <span className="pointer-events-none absolute inset-0 rounded-full border-2 border-[#c9a227]/60 animate-ping" />}
       <MessageCircle size={25} className="relative" />
       {/* Punto verde centrado: en línea */}
-      <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500 ring-2 ring-white" />
+      <span className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500 ring-2 ring-white" />
       {n > 0 && (
         <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[11px] font-bold text-white ring-2 ring-white">
           {n > 99 ? '99+' : n}
@@ -38,7 +38,7 @@ export function IconoChatHeader({ onClick }: { onClick: () => void }) {
       {n > 0 && <span className="pointer-events-none absolute inset-0 rounded-full border-2 border-white/70 animate-ping" />}
       <MessageCircle size={15} className="relative" />
       {/* Punto verde centrado: en línea */}
-      <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500 ring-2 ring-white" />
+      <span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500 ring-1 ring-white" />
       {n > 0 && (
         <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white ring-2 ring-white">
           {n > 9 ? '9+' : n}
