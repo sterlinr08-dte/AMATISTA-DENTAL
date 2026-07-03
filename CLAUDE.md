@@ -102,3 +102,81 @@ backup/         Sistema anterior (no tocar salvo petición explícita)
 - No crees Pull Requests salvo que el usuario lo pida explícitamente.
 - Commits con mensajes claros y descriptivos.
 - El usuario (dueña del salón) se comunica en español; responde en español.
+
+---
+
+# Estado actual · AMATISTA DENTAL (para continuar en otro chat)
+
+> Aunque arriba el doc describe "Deluxe Beauty Center", **este repositorio es
+> AMATISTA DENTAL** (clínica odontológica, clon adaptado, estilo Dentalink).
+> Repo GitHub: **`sterlinr08-dte/AMATISTA-DENTAL`** (PÚBLICO).
+> Proyecto Supabase: **`sdxyqaawxomnfhyaxuyo`**.
+> Producción: **https://amatista.nexusprord.com** (GitHub Pages + dominio propio).
+> Entrada por portal NEXUS (`nexusprord.com`); sin login propio en la app.
+
+## Módulo de Chat interno corporativo (YA CONSTRUIDO y en producción)
+
+Mensajería en tiempo real del equipo (Supabase Realtime + RLS). Fases hechas:
+**1** (chat directo, presencia, "escribiendo…", recibos de lectura, no leídos),
+**2** (grupos + grupos por departamento), **3** ("Conversación del caso" en la
+ficha del paciente), **8** (centro de notificaciones: campana + toasts + sonido),
+**9** (avisos institucionales), **10** (tareas del equipo). Extras: adjuntos,
+respuestas rápidas, menciones `@`, responder/editar (estilo WhatsApp), gestión de
+miembros del grupo (ver/agregar/quitar), acceso rápido (burbuja flotante + ícono
+en la barra) que abre una ventana estilo Messenger con tamaño configurable.
+
+- Frontend: `src/pages/Chat.tsx`, `src/components/chat/*`
+  (`ChatWorkspace`, `HiloMensajes`, `ChatDrawer`, `BotonChat`),
+  `src/pages/ConversacionCaso.tsx`, `src/pages/Tareas.tsx`, `src/pages/Avisos.tsx`,
+  `src/components/CampanaNotificaciones.tsx`, `src/components/TareaModal.tsx`,
+  `src/components/AjustesChat.tsx`.
+- Libs: `src/lib/chat.ts`, `chatActivo.ts`, `notificaciones.ts`, `tareas.ts`,
+  `avisos.ts`, `ajustesChat.ts` (preferencias del chat en localStorage),
+  `useChatNoLeidos.ts`.
+- Backend (Supabase): tablas `chat_conversaciones/participantes/mensajes`,
+  `notificaciones`, `tareas`, `avisos`; vista `chat_mis_conversaciones`; RPCs
+  `chat_abrir_directo`, `chat_crear_grupo`, `chat_departamento`,
+  `chat_conversacion_paciente`, `chat_marcar_leido`, `chat_no_leidos_total`,
+  `chat_usuarios`, `chat_agregar_miembro`, `chat_quitar_miembro`,
+  `crear_notificacion`, `notif_no_leidas`, `marcar_notifs_leidas`; triggers de
+  menciones/tareas/avisos; RLS por PARTICIPACIÓN (un no-participante ve 0);
+  bucket privado `chat` para adjuntos. Realtime habilitado en esas tablas.
+- Pendiente opcional: Fase 4 (hilo por tratamiento; el tipo `tratamiento` y
+  `presupuesto_id` ya existen). Departamentos: hoy incluyen a TODO el personal
+  activo (no hay campo `departamento` por usuario).
+
+## Despliegue: problema conocido de GitHub Pages
+
+El **build siempre pasa**; lo que falla de forma intermitente es el paso final
+`actions/deploy-pages@v4` con el error **"Deployment failed, try again later"**.
+Es un **problema de infraestructura de GitHub Pages**, NO del código, y NO afecta
+al sitio ya publicado. Solución: **relanzar** el deploy hasta que quede verde
+(`rerun_failed_jobs` sobre el run fallido, o `run_workflow` de `deploy.yml` en
+`main`). Verificar con `actions_get get_workflow_run`.
+
+## PENDIENTE: migrar el hosting a Cloudflare Pages (decidido por la dueña)
+
+Motivo: GitHub Pages viene fallando/lento al publicar; Cloudflare Pages es más
+rápido y estable, y **gratis** para este uso. La dueña **hará el paso del token
+más adelante**; mientras tanto se sigue publicando en GitHub Pages.
+
+Plan acordado (deploy automático como ahora, pero a Cloudflare):
+- Un GitHub Action publica con **`wrangler pages deploy dist`** (carga directa:
+  se compila en el runner y se sube el resultado → **no consume** el cupo de 500
+  builds/mes del plan gratis; ideal porque la dueña tiene varias empresas/dominios).
+- Requiere **GitHub Secrets** (los crea/pega ELLA, nunca en el repo/chat):
+  `CLOUDFLARE_API_TOKEN` (permiso mínimo **Account → Cloudflare Pages → Edit**) y
+  `CLOUDFLARE_ACCOUNT_ID`.
+- Nombre del proyecto Cloudflare Pages: **por definir** (sugerido `amatista-dental`).
+- Al activar, mantener el dominio `amatista.nexusprord.com` y `vite.config.ts`
+  con `base` correcto (Pages sirve en raíz de dominio → `base: '/'`; HashRouter
+  seguiría funcionando igual).
+
+## SEGURIDAD (crítico — leer)
+
+- El repo es **PÚBLICO**: **NUNCA** poner tokens/secretos en el código, en
+  `deploy.yml`, ni en el chat. Los secretos van **solo** en GitHub Actions Secrets.
+- ⚠️ La dueña **pegó por error un token de Cloudflare en el chat**. Ese token debe
+  considerarse **comprometido**: hay que **anularlo/regenerarlo** en Cloudflare
+  (API Tokens → Roll/Delete) y usar uno NUEVO. No reutilizar el expuesto.
+- La `VITE_SUPABASE_ANON_KEY` sí es pública por diseño (la protege RLS).
