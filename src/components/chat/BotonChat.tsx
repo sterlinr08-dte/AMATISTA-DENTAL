@@ -34,8 +34,8 @@ export function IconoChatHeader({ onClick }: { onClick: () => void }) {
     >
       {n > 0 && <span className="pointer-events-none absolute inset-0 rounded-full border-2 border-white/70 animate-ping" />}
       <MessageCircle size={15} className="relative" />
-      {/* Punto verde centrado sobre el ícono */}
-      <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500 ring-2 ring-white" />
+      {/* Punto verde en la esquina, igual que la burbuja flotante */}
+      <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
       {n > 0 && (
         <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white ring-2 ring-white">
           {n > 9 ? '9+' : n}
