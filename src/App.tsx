@@ -32,6 +32,7 @@ import Nomina from './pages/Nomina'
 import Contabilidad from './pages/Contabilidad'
 import Reportes from './pages/Reportes'
 import Indicadores from './pages/Indicadores'
+import Chat from './pages/Chat'
 import Configuracion from './pages/Configuracion'
 import Cargando from './components/Cargando'
 import { useAuth } from './lib/auth'
@@ -132,6 +133,7 @@ export default function App() {
               <Route path="/contabilidad" element={<Protegido modulo="contabilidad"><Contabilidad /></Protegido>} />
               <Route path="/reportes" element={<Protegido modulo="reportes"><Reportes /></Protegido>} />
               <Route path="/indicadores" element={<Protegido modulo="indicadores"><Indicadores /></Protegido>} />
+              <Route path="/chat" element={<Protegido modulo="chat"><Chat /></Protegido>} />
               <Route path="/configuracion" element={<Protegido modulo="configuracion"><Configuracion /></Protegido>} />
             </Routes>
           </div>

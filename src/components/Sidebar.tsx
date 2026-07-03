@@ -28,9 +28,11 @@ import {
   HandCoins,
   FileBarChart,
   Gauge,
+  MessagesSquare,
   X,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { useChatNoLeidos } from '../lib/useChatNoLeidos'
 
 type Link = { to: string; label: string; icon: typeof Users; modulo: string; end?: boolean; oculto?: boolean }
 
@@ -42,6 +44,7 @@ const grupos: { titulo: string; links: Link[] }[] = [
       { to: '/citas', label: 'Citas / Agenda', icon: CalendarDays, modulo: 'citas' },
       { to: '/clientes', label: 'Pacientes', icon: Users, modulo: 'clientes' },
       { to: '/ficha', label: 'Ficha del paciente', icon: IdCard, modulo: 'ficha' },
+      { to: '/chat', label: 'Chat interno', icon: MessagesSquare, modulo: 'chat' },
       // Se trabajan desde la ficha del paciente; ocultos del menú para dejarlo más limpio.
       { to: '/odontograma', label: 'Odontograma', icon: Smile, modulo: 'odontograma', oculto: true },
       { to: '/periodontograma', label: 'Periodontograma', icon: Ruler, modulo: 'periodontograma', oculto: true },
@@ -91,6 +94,7 @@ interface Props {
 
 export default function Sidebar({ open, onClose }: Props) {
   const { perfil, signOut, puede } = useAuth()
+  const chatNoLeidos = useChatNoLeidos()
   const visibles = grupos
     .map((g) => ({ ...g, links: g.links.filter((l) => puede(l.modulo) && !l.oculto) }))
     .filter((g) => g.links.length > 0)
@@ -120,7 +124,7 @@ export default function Sidebar({ open, onClose }: Props) {
             <div key={g.titulo}>
               <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/70">{g.titulo}</p>
               <div className="space-y-1">
-                {g.links.map(({ to, label, icon: Icon, end }) => (
+                {g.links.map(({ to, label, icon: Icon, end, modulo }) => (
                   <NavLink
                     key={to}
                     to={to}
@@ -137,7 +141,12 @@ export default function Sidebar({ open, onClose }: Props) {
                     {({ isActive }) => (
                       <>
                         <Icon size={18} className={isActive ? 'text-amber-600' : 'text-amber-50/90 group-hover:text-white'} />
-                        {label}
+                        <span className="flex-1">{label}</span>
+                        {modulo === 'chat' && chatNoLeidos > 0 && (
+                          <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white shadow">
+                            {chatNoLeidos > 99 ? '99+' : chatNoLeidos}
+                          </span>
+                        )}
                       </>
                     )}
                   </NavLink>
