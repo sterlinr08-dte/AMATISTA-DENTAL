@@ -30,12 +30,13 @@ import {
   Gauge,
   MessagesSquare,
   ListChecks,
+  Megaphone,
   X,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useChatNoLeidos } from '../lib/useChatNoLeidos'
 
-type Link = { to: string; label: string; icon: typeof Users; modulo: string; end?: boolean; oculto?: boolean }
+type Link = { to: string; label: string; icon: typeof Users; modulo: string; end?: boolean; oculto?: boolean; siempre?: boolean }
 
 const grupos: { titulo: string; links: Link[] }[] = [
   {
@@ -47,6 +48,7 @@ const grupos: { titulo: string; links: Link[] }[] = [
       { to: '/ficha', label: 'Ficha del paciente', icon: IdCard, modulo: 'ficha' },
       { to: '/chat', label: 'Chat interno', icon: MessagesSquare, modulo: 'chat' },
       { to: '/tareas', label: 'Tareas', icon: ListChecks, modulo: 'tareas' },
+      { to: '/avisos', label: 'Avisos', icon: Megaphone, modulo: 'avisos', siempre: true },
       // Se trabajan desde la ficha del paciente; ocultos del menú para dejarlo más limpio.
       { to: '/odontograma', label: 'Odontograma', icon: Smile, modulo: 'odontograma', oculto: true },
       { to: '/periodontograma', label: 'Periodontograma', icon: Ruler, modulo: 'periodontograma', oculto: true },
@@ -98,7 +100,7 @@ export default function Sidebar({ open, onClose }: Props) {
   const { perfil, signOut, puede } = useAuth()
   const chatNoLeidos = useChatNoLeidos()
   const visibles = grupos
-    .map((g) => ({ ...g, links: g.links.filter((l) => puede(l.modulo) && !l.oculto) }))
+    .map((g) => ({ ...g, links: g.links.filter((l) => (l.siempre || puede(l.modulo)) && !l.oculto) }))
     .filter((g) => g.links.length > 0)
 
   return (

@@ -6,6 +6,7 @@ import { CitaConRelaciones } from '../types'
 import { hora, money, hoyISO, fechaLarga } from '../lib/format'
 import { useNegocio } from '../lib/negocio'
 import Cargando from '../components/Cargando'
+import AvisosPanel from '../components/AvisosPanel'
 
 interface Stats {
   clientes: number
@@ -76,6 +77,8 @@ export default function Dashboard() {
           <p>📷 {negocio.instagram}</p>
         </div>
       </div>
+
+      <AvisosPanel />
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {tarjetas.map((t) => (
