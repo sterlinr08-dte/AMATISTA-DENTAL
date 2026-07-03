@@ -30,13 +30,13 @@ export function IconoChatHeader({ onClick }: { onClick: () => void }) {
     <button
       onClick={onClick}
       aria-label="Abrir chat"
-      className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#f2d873] via-[#c9a227] to-[#b8901f] text-white ring-2 ring-white/70 shadow-[0_4px_10px_-3px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.5)] transition hover:brightness-105"
+      className="relative flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#f2d873] via-[#c9a227] to-[#b8901f] text-white ring-2 ring-white/70 shadow-[0_3px_8px_-3px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.5)] transition hover:brightness-105"
     >
       {n > 0 && <span className="pointer-events-none absolute inset-0 rounded-full border-2 border-white/70 animate-ping" />}
-      <MessageCircle size={18} className="relative" />
-      <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+      <MessageCircle size={15} className="relative" />
+      <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
       {n > 0 && (
-        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+        <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white ring-2 ring-white">
           {n > 9 ? '9+' : n}
         </span>
       )}
