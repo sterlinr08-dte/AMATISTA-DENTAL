@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Save, FileText } from 'lucide-react'
+import { Plus, Trash2, Save, FileText, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Cliente, Empleado, Servicio, Presupuesto, PresupuestoItem, EstadoPresupuesto } from '../types'
 import { money, fechaCorta, hoyISO } from '../lib/format'
@@ -418,15 +418,21 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
           {editId && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium text-slate-600">Marcar como:</span>
-              <button type="button" onClick={() => marcarEstado('PRESENTADO')} className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100">
-                Presentado
-              </button>
-              <button type="button" onClick={() => marcarEstado('APROBADO')} className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                Aprobado
-              </button>
-              <button type="button" onClick={() => marcarEstado('RECHAZADO')} className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
-                Rechazado
-              </button>
+              {([
+                ['PRESENTADO', 'Presentado', 'bg-blue-600 text-white ring-blue-300', 'bg-blue-50 text-blue-700 hover:bg-blue-100'],
+                ['APROBADO', 'Aprobado', 'bg-emerald-600 text-white ring-emerald-300', 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'],
+                ['RECHAZADO', 'Rechazado', 'bg-rose-600 text-white ring-rose-300', 'bg-rose-50 text-rose-700 hover:bg-rose-100'],
+              ] as const).map(([val, label, activo, inactivo]) => {
+                const sel = estado === val
+                return (
+                  <button key={val} type="button" onClick={() => marcarEstado(val)}
+                    aria-pressed={sel}
+                    className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition ${sel ? `${activo} ring-2` : inactivo}`}>
+                    {sel && <Check size={13} strokeWidth={3} />}
+                    {label}
+                  </button>
+                )
+              })}
             </div>
           )}
 
