@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { MessageSquarePlus, Users, Search, Building2, ArrowLeft, Hash, UserRound, Stethoscope, Maximize2 } from 'lucide-react'
+import { MessageSquarePlus, Users, Search, Building2, ArrowLeft, Hash, UserRound, Stethoscope, Maximize2, ChevronRight, UserPlus, UserMinus, LogOut } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import Modal from '../Modal'
@@ -30,6 +30,9 @@ export default function ChatWorkspace({ enDrawer = false, onAbrirCompleto }: { e
 
   const [modalNuevo, setModalNuevo] = useState<null | 'directo' | 'grupo' | 'depto'>(null)
   const [tareaCtx, setTareaCtx] = useState<{ ctx: ContextoTarea; titulo: string } | null>(null)
+  const [verMiembros, setVerMiembros] = useState(false)
+  const [agregarOpen, setAgregarOpen] = useState(false)
+  const [miembros, setMiembros] = useState<{ usuario_id: string; rol: string }[]>([])
 
   const cargarConvs = useCallback(async () => {
     const { data } = await supabase.from('chat_mis_conversaciones').select('*').order('ultimo_mensaje_at', { ascending: false })
@@ -115,6 +118,34 @@ export default function ChatWorkspace({ enDrawer = false, onAbrirCompleto }: { e
 
   const listaUsuarios = useMemo(() => Object.values(usuarios).filter((u) => u.id !== miId), [usuarios, miId])
 
+  // --- Miembros del grupo ---------------------------------------------
+  const cargarMiembros = useCallback(async (convId: string) => {
+    const { data } = await supabase.from('chat_participantes').select('usuario_id, rol').eq('conversacion_id', convId)
+    setMiembros((data as { usuario_id: string; rol: string }[]) ?? [])
+  }, [])
+  function abrirMiembros() { if (!convSel) return; cargarMiembros(convSel.id); setVerMiembros(true) }
+  const puedeGestionar = !!perfil?.es_admin || miembros.some((m) => m.usuario_id === miId && m.rol === 'admin')
+
+  async function quitarMiembro(uid: string) {
+    if (!convSel) return
+    const esYo = uid === miId
+    if (!confirm(esYo ? '¿Salir de este grupo?' : '¿Quitar a esta persona del grupo?')) return
+    const { error } = await supabase.rpc('chat_quitar_miembro', { p_conv: convSel.id, p_usuario: uid })
+    if (error) return alert(error.message)
+    if (esYo) { setVerMiembros(false); setSel(null); await cargarConvs() }
+    else { await cargarMiembros(convSel.id); await cargarConvs() }
+  }
+  async function agregarMiembro(uid: string) {
+    if (!convSel) return
+    const { error } = await supabase.rpc('chat_agregar_miembro', { p_conv: convSel.id, p_usuario: uid })
+    if (error) return alert(error.message)
+    setAgregarOpen(false); await cargarMiembros(convSel.id); await cargarConvs()
+  }
+  const noMiembros = useMemo(
+    () => listaUsuarios.filter((u) => !miembros.some((m) => m.usuario_id === u.id)),
+    [listaUsuarios, miembros],
+  )
+
   // Layout de columnas: en el panel deslizante es una sola columna (como móvil).
   const colLista = (sel ? (enDrawer ? 'hidden' : 'hidden md:flex') : 'flex') + (enDrawer ? ' w-full' : ' w-full md:w-80')
   const colHilo = sel ? 'flex' : (enDrawer ? 'hidden' : 'hidden md:flex')
@@ -189,14 +220,22 @@ export default function ChatWorkspace({ enDrawer = false, onAbrirCompleto }: { e
                 <div className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: colorAvatar(convSel.tipo === 'directo' ? convSel.otro_id : convSel.id) }}>
                   {convSel.tipo === 'directo' ? inicialesChat(tituloConv(convSel)) : <IconoTipo tipo={convSel.tipo} />}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-slate-800">{tituloConv(convSel)}</p>
-                  <p className="truncate text-[11px] text-slate-500">
-                    {convSel.tipo === 'directo'
-                      ? (estadoDe(convSel.otro_id) === 'online' ? 'En línea' : estadoDe(convSel.otro_id) === 'ausente' ? 'Ausente' : 'Desconectado')
-                      : `${convSel.n_participantes} participantes`}
-                  </p>
-                </div>
+                {convSel.tipo === 'directo' ? (
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-slate-800">{tituloConv(convSel)}</p>
+                    <p className="truncate text-[11px] text-slate-500">
+                      {estadoDe(convSel.otro_id) === 'online' ? 'En línea' : estadoDe(convSel.otro_id) === 'ausente' ? 'Ausente' : 'Desconectado'}
+                    </p>
+                  </div>
+                ) : (
+                  <button onClick={abrirMiembros} className="group/h flex min-w-0 flex-1 items-center gap-1 text-left" title="Ver miembros">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-800">{tituloConv(convSel)}</p>
+                      <p className="truncate text-[11px] text-slate-500 group-hover/h:text-amber-700">{convSel.n_participantes} participantes · ver</p>
+                    </div>
+                    <ChevronRight size={16} className="shrink-0 text-slate-400 group-hover/h:text-amber-600" />
+                  </button>
+                )}
               </div>
               <div className="flex-1 p-2 sm:p-3">
                 <HiloMensajes conversacionId={convSel.id} miId={miId} usuarios={usuarios} onActividad={cargarConvs} alto="h-full"
@@ -225,6 +264,48 @@ export default function ChatWorkspace({ enDrawer = false, onAbrirCompleto }: { e
 
       <ModalGrupo open={modalNuevo === 'grupo'} usuarios={listaUsuarios} onClose={() => setModalNuevo(null)}
         onCreado={async (id) => { setModalNuevo(null); await cargarConvs(); setSel(id) }} />
+
+      {/* Miembros del grupo */}
+      <Modal open={verMiembros} title={`Miembros · ${convSel ? tituloConv(convSel) : ''}`} onClose={() => setVerMiembros(false)}>
+        {puedeGestionar && (
+          <button onClick={() => setAgregarOpen(true)} className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 py-2.5 text-sm font-semibold text-amber-700 hover:bg-amber-100">
+            <UserPlus size={16} /> Agregar miembro
+          </button>
+        )}
+        <div className="max-h-96 space-y-1 overflow-y-auto">
+          {miembros.length === 0 && <p className="py-6 text-center text-sm text-slate-400">Cargando…</p>}
+          {miembros.map((m) => {
+            const u = usuarios[m.usuario_id]
+            const est = estadoDe(m.usuario_id)
+            const esYo = m.usuario_id === miId
+            return (
+              <div key={m.usuario_id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50">
+                <div className="relative">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: colorAvatar(m.usuario_id) }}>{inicialesChat(nombreUsuario(u))}</div>
+                  <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-white ${est === 'online' ? 'bg-emerald-500' : est === 'ausente' ? 'bg-amber-400' : 'bg-slate-300'}`} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-800">{nombreUsuario(u)}{esYo ? ' (yo)' : ''}</p>
+                  <p className="truncate text-xs text-slate-400">{est === 'online' ? 'En línea' : est === 'ausente' ? 'Ausente' : 'Desconectado'}</p>
+                </div>
+                {m.rol === 'admin' && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">Admin</span>}
+                {esYo ? (
+                  <button onClick={() => quitarMiembro(m.usuario_id)} title="Salir del grupo" className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><LogOut size={16} /></button>
+                ) : puedeGestionar ? (
+                  <button onClick={() => quitarMiembro(m.usuario_id)} title="Quitar del grupo" className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><UserMinus size={16} /></button>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      </Modal>
+
+      {/* Agregar miembro */}
+      <Modal open={agregarOpen} title="Agregar miembro" onClose={() => setAgregarOpen(false)}>
+        {noMiembros.length === 0
+          ? <p className="py-6 text-center text-sm text-slate-400">Todos ya están en el grupo.</p>
+          : <ListaUsuarios usuarios={noMiembros} presencia={presencia} onElegir={agregarMiembro} />}
+      </Modal>
 
       <TareaModal open={!!tareaCtx} tituloInicial={tareaCtx?.titulo} contexto={tareaCtx?.ctx} onClose={() => setTareaCtx(null)} />
     </>
