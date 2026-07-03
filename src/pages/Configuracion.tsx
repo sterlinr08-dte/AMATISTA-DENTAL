@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Plus, Pencil, Trash2, UserPlus, ShieldCheck, Users as UsersIcon, Store, Tags, Truck, ScrollText, Percent, Hash, Printer, Download, ReceiptText } from 'lucide-react'
+import { Plus, Pencil, Trash2, UserPlus, ShieldCheck, Users as UsersIcon, Store, Tags, Truck, ScrollText, Percent, Hash, Printer, Download, ReceiptText, MessagesSquare } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { MODULOS, ACCIONES, etiquetaPermiso, Rol } from '../lib/permisos'
 import { Empleado, Proveedor, Auditoria, SecuenciaNcf } from '../types'
@@ -13,6 +13,7 @@ import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
 import Modal from '../components/Modal'
 import DataTable from '../components/DataTable'
+import AjustesChat from '../components/AjustesChat'
 import Paginacion, { usePaginacion } from '../components/Paginacion'
 
 const MODULO_LABEL: Record<string, string> = {
@@ -36,7 +37,7 @@ export default function Configuracion() {
   const { perfil, recargarPerfil } = useAuth()
   const { negocio, recargarNegocio } = useNegocio()
   const [params] = useSearchParams()
-  const [tab, setTab] = useState<'usuarios' | 'roles' | 'proveedores' | 'negocio' | 'prefijos' | 'impresora' | 'comprobantes' | 'categorias' | 'comisiones' | 'auditoria'>(params.get('tab') === 'impresora' ? 'impresora' : params.get('tab') === 'comprobantes' ? 'comprobantes' : 'usuarios')
+  const [tab, setTab] = useState<'usuarios' | 'roles' | 'proveedores' | 'negocio' | 'prefijos' | 'impresora' | 'comprobantes' | 'categorias' | 'comisiones' | 'chat' | 'auditoria'>(params.get('tab') === 'impresora' ? 'impresora' : params.get('tab') === 'comprobantes' ? 'comprobantes' : params.get('tab') === 'chat' ? 'chat' : 'usuarios')
   const [pruebaOpen, setPruebaOpen] = useState(false)
   const [qzMsg, setQzMsg] = useState<{ ok: boolean; texto: string } | null>(null)
   const [qzProbando, setQzProbando] = useState(false)
@@ -419,6 +420,9 @@ export default function Configuracion() {
         </button>
         <button onClick={() => setTab('comisiones')} className={tab === 'comisiones' ? 'btn-primary' : 'btn-ghost'}>
           <Percent size={16} /> Comisiones
+        </button>
+        <button onClick={() => setTab('chat')} className={tab === 'chat' ? 'btn-primary' : 'btn-ghost'}>
+          <MessagesSquare size={16} /> Chat
         </button>
         {perfil?.es_admin && (
           <button onClick={() => setTab('auditoria')} className={tab === 'auditoria' ? 'btn-primary' : 'btn-ghost'}>
@@ -866,6 +870,8 @@ export default function Configuracion() {
             { header: 'Detalle', cell: (a) => <span className="text-slate-600">{a.descripcion}</span>, sortValue: (a) => a.descripcion ?? '' },
           ]}
         />
+      ) : tab === 'chat' ? (
+        <AjustesChat />
       ) : tab === 'comisiones' ? (
         <div className="space-y-5">
           <p className="text-sm text-slate-600">

@@ -5,6 +5,7 @@ import { Bell, CheckCheck, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { getConversacionActiva } from '../lib/chatActivo'
+import { leerAjustesChat } from '../lib/ajustesChat'
 import { Notificacion, iconoTipo, hace } from '../lib/notificaciones'
 
 interface Toast { id: string; icono: string; titulo: string; cuerpo?: string | null; enlace?: string | null }
@@ -64,7 +65,7 @@ export default function CampanaNotificaciones() {
 
   function empujarToast(t: Toast) {
     setToasts((prev) => [...prev, t])
-    beep()
+    if (leerAjustesChat().sonido) beep()
     setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== t.id)), 6000)
   }
 

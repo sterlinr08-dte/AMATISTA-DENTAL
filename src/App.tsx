@@ -41,6 +41,7 @@ import CampanaNotificaciones from './components/CampanaNotificaciones'
 import ChatDrawer from './components/chat/ChatDrawer'
 import { BurbujaChat, IconoChatHeader } from './components/chat/BotonChat'
 import { useAuth } from './lib/auth'
+import { useAjustesChat } from './lib/ajustesChat'
 import { MODULOS } from './lib/permisos'
 
 function Protegido({ modulo, children }: { modulo: string; children: ReactElement }) {
@@ -60,6 +61,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const location = useLocation()
+  const ajustesChat = useAjustesChat()
 
   // El acceso rápido (burbuja + ícono) aparece si el usuario tiene el chat,
   // y se oculta en la propia página del chat.
@@ -111,7 +113,7 @@ export default function App() {
           />
           <span className="text-lg font-semibold tracking-wide text-white [text-shadow:0_1px_2px_rgba(120,90,10,0.45)]">Amatista Dental</span>
           <div className="ml-auto flex items-center gap-1">
-            {accesoChat && <IconoChatHeader onClick={() => setChatOpen(true)} />}
+            {accesoChat && <IconoChatHeader onClick={() => setChatOpen((v) => !v)} />}
             <CampanaNotificaciones />
           </div>
         </header>
@@ -161,7 +163,7 @@ export default function App() {
       </div>
 
       {/* Acceso rápido al chat desde cualquier pantalla */}
-      {accesoChat && <BurbujaChat onClick={() => setChatOpen(true)} />}
+      {accesoChat && ajustesChat.burbuja && <BurbujaChat onClick={() => setChatOpen((v) => !v)} />}
       <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   )
