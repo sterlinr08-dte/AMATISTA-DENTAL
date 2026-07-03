@@ -1,5 +1,5 @@
 import { useState, useEffect, ReactElement } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
@@ -38,6 +38,8 @@ import Avisos from './pages/Avisos'
 import Configuracion from './pages/Configuracion'
 import Cargando from './components/Cargando'
 import CampanaNotificaciones from './components/CampanaNotificaciones'
+import ChatDrawer from './components/chat/ChatDrawer'
+import { BurbujaChat, IconoChatHeader } from './components/chat/BotonChat'
 import { useAuth } from './lib/auth'
 import { MODULOS } from './lib/permisos'
 
@@ -54,8 +56,16 @@ function Protegido({ modulo, children }: { modulo: string; children: ReactElemen
 }
 
 export default function App() {
-  const { session, loading } = useAuth()
+  const { session, loading, puede } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+  const location = useLocation()
+
+  // El acceso rápido (burbuja + ícono) aparece si el usuario tiene el chat,
+  // y se oculta en la propia página del chat.
+  const accesoChat = puede('chat') && !location.pathname.startsWith('/chat')
+  // Al navegar a otra pantalla, cerrar el panel deslizante.
+  useEffect(() => { setChatOpen(false) }, [location.pathname])
 
   // Al enfocar un campo numérico, seleccionar su contenido para que el "0"
   // se reemplace al escribir (evita tener que borrarlo manualmente).
@@ -100,7 +110,8 @@ export default function App() {
             className="h-9 w-9 rounded-lg bg-white object-contain p-0.5 shadow-[0_4px_10px_-3px_rgba(0,0,0,0.4),inset_0_1px_0_#fff] ring-1 ring-white/60"
           />
           <span className="text-lg font-semibold tracking-wide text-white [text-shadow:0_1px_2px_rgba(120,90,10,0.45)]">Amatista Dental</span>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
+            {accesoChat && <IconoChatHeader onClick={() => setChatOpen(true)} />}
             <CampanaNotificaciones />
           </div>
         </header>
@@ -148,6 +159,10 @@ export default function App() {
           </div>
         </main>
       </div>
+
+      {/* Acceso rápido al chat desde cualquier pantalla */}
+      {accesoChat && <BurbujaChat onClick={() => setChatOpen(true)} />}
+      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   )
 }
