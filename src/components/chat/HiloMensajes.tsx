@@ -213,7 +213,16 @@ export default function HiloMensajes({ conversacionId, miId, usuarios, onActivid
                         {m.texto && <p className="whitespace-pre-wrap break-words">{m.texto}</p>}
                       </>
                     )}
-                    <div className="mt-0.5 flex items-center justify-end gap-1">
+                    <div className="mt-0.5 flex items-center justify-end gap-1.5">
+                      {/* Iconos de acción (al pasar el cursor), junto a la hora */}
+                      {!m.eliminado && (
+                        <div className="hidden items-center gap-0.5 group-hover:flex">
+                          <button title="Responder" onClick={() => { setRespondiendo(m); setEditando(null) }} className="rounded p-0.5 text-slate-400 hover:text-amber-600"><CornerUpLeft size={14} /></button>
+                          {onCrearTarea && m.texto && <button title="Convertir en tarea" onClick={() => onCrearTarea(m.texto ?? '')} className="rounded p-0.5 text-slate-400 hover:text-amber-600"><ListPlus size={14} /></button>}
+                          {mio && m.texto && <button title="Editar" onClick={() => { setEditando(m); setTexto(m.texto ?? ''); setRespondiendo(null) }} className="rounded p-0.5 text-slate-400 hover:text-amber-600"><Pencil size={14} /></button>}
+                          {mio && <button title="Eliminar" onClick={() => borrar(m)} className="rounded p-0.5 text-slate-400 hover:text-rose-600"><Trash2 size={14} /></button>}
+                        </div>
+                      )}
                       {m.editado_at && !m.eliminado && <span className="text-[10px] text-slate-400">editado</span>}
                       <span className="text-[10px] text-slate-400">{horaChat(m.created_at)}</span>
                       {mio && !m.eliminado && (
@@ -222,16 +231,6 @@ export default function HiloMensajes({ conversacionId, miId, usuarios, onActivid
                           : <CheckCheck size={13} className="text-slate-400" />
                       )}
                     </div>
-
-                    {/* Acciones al pasar el mouse */}
-                    {!m.eliminado && (
-                      <div className={`absolute top-1 ${mio ? 'left-1' : 'right-1'} hidden gap-0.5 group-hover:flex`}>
-                        <button title="Responder" onClick={() => { setRespondiendo(m); setEditando(null) }} className="rounded bg-white/90 p-1 text-slate-500 shadow ring-1 ring-slate-200 hover:text-amber-600"><CornerUpLeft size={12} /></button>
-                        {onCrearTarea && m.texto && <button title="Convertir en tarea" onClick={() => onCrearTarea(m.texto ?? '')} className="rounded bg-white/90 p-1 text-slate-500 shadow ring-1 ring-slate-200 hover:text-amber-600"><ListPlus size={12} /></button>}
-                        {mio && m.texto && <button title="Editar" onClick={() => { setEditando(m); setTexto(m.texto ?? ''); setRespondiendo(null) }} className="rounded bg-white/90 p-1 text-slate-500 shadow ring-1 ring-slate-200 hover:text-amber-600"><Pencil size={12} /></button>}
-                        {mio && <button title="Eliminar" onClick={() => borrar(m)} className="rounded bg-white/90 p-1 text-slate-500 shadow ring-1 ring-slate-200 hover:text-rose-600"><Trash2 size={12} /></button>}
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -257,14 +256,21 @@ export default function HiloMensajes({ conversacionId, miId, usuarios, onActivid
         </div>
       )}
 
-      {/* Contexto: respondiendo / editando */}
+      {/* Cita de respuesta / edición (estilo WhatsApp) */}
       {(respondiendo || editando) && (
-        <div className="flex items-center gap-2 border-t border-slate-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
-          {editando ? <Pencil size={13} /> : <CornerUpLeft size={13} />}
-          <span className="min-w-0 flex-1 truncate">
-            {editando ? 'Editando mensaje' : <>Respondiendo a <b>{nombreUsuario(usuarios[respondiendo!.autor_id ?? ''])}</b>: {respondiendo!.texto ?? '📎 archivo'}</>}
-          </span>
-          <button onClick={() => { setRespondiendo(null); setEditando(null); if (editando) setTexto('') }} className="rounded p-0.5 hover:bg-amber-100"><X size={14} /></button>
+        <div className="border-t border-slate-200 bg-white px-2.5 pt-2">
+          <div className="flex items-stretch gap-2 rounded-lg bg-slate-100 py-1.5 pl-2 pr-1">
+            <div className="w-1 shrink-0 rounded-full" style={{ background: editando ? '#c9a227' : colorAvatar(respondiendo!.autor_id) }} />
+            <div className="min-w-0 flex-1 py-0.5">
+              <p className="truncate text-[12px] font-bold" style={{ color: editando ? '#9c7d18' : colorAvatar(respondiendo!.autor_id) }}>
+                {editando ? 'Editar mensaje' : nombreUsuario(usuarios[respondiendo!.autor_id ?? ''])}
+              </p>
+              <p className="truncate text-[12px] text-slate-500">
+                {editando ? (editando.texto ?? '') : (respondiendo!.texto ?? '📎 archivo')}
+              </p>
+            </div>
+            <button onClick={() => { setRespondiendo(null); setEditando(null); if (editando) setTexto('') }} className="self-center rounded-full p-1 text-slate-400 hover:bg-slate-200"><X size={16} /></button>
+          </div>
         </div>
       )}
 
@@ -279,7 +285,7 @@ export default function HiloMensajes({ conversacionId, miId, usuarios, onActivid
           value={texto}
           onChange={(e) => { setTexto(e.target.value); avisarTyping() }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
-          placeholder="Escribe un mensaje…  (usa @ para mencionar)"
+          placeholder="Mensaje"
           className="max-h-32 min-h-[40px] flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
         />
         <button onClick={() => enviar()} disabled={enviando || !texto.trim()} className="shrink-0 rounded-xl bg-gradient-to-b from-[#e6b93c] to-[#c9a227] p-2.5 text-white shadow disabled:opacity-40">
