@@ -23,7 +23,7 @@ export default function ChatDrawer({ open, onClose }: { open: boolean; onClose: 
 
   return createPortal(
     <div
-      className="animate-modal-panel fixed bottom-[86px] right-4 z-[55] flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-amber-100 shadow-[0_28px_60px_-18px_rgba(120,90,10,0.55)]"
+      className="animate-modal-panel fixed bottom-[86px] right-4 z-[55] flex flex-col overflow-hidden rounded-2xl border-2 border-[#9c7d18] bg-[#fffdf7] shadow-[0_30px_70px_-20px_rgba(120,90,10,0.7),inset_1px_1px_0_rgba(255,255,255,0.6)]"
       style={{ width: `min(${s.w}px, 94vw)`, height: `min(${s.h}px, 78vh)` }}
     >
       <div className="flex items-center gap-2 border-b-2 border-[#9c7d18] bg-[linear-gradient(180deg,#e6c356,#c9a227_58%,#b8901f)] px-3 py-2">
