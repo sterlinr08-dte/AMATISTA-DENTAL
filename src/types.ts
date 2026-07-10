@@ -115,6 +115,15 @@ export interface Factura {
   notas: string | null
   created_at: string
   updated_at: string
+  // Descuento: motivo y forma en que se capturó (queda auditado automáticamente)
+  descuento_motivo: string | null
+  descuento_tipo: 'MONTO' | 'PORCENTAJE'
+  descuento_porcentaje: number
+  // Crédito: vencimiento, plazo, inicial y observaciones
+  credito_vencimiento: string | null
+  credito_plazo_dias: number | null
+  credito_inicial: number
+  credito_observaciones: string | null
   // Comprobante fiscal DGII
   ncf: string | null
   tipo_comprobante: string | null
@@ -142,6 +151,15 @@ export interface FacturaPago {
   caja_id: string | null
   registrado_por: string | null
   created_at: string
+  // Detalle de tarjeta (si el método es "Tarjeta")
+  tarjeta_tipo: string | null
+  tarjeta_ultimos4: string | null
+  tarjeta_autorizacion: string | null
+  tarjeta_terminal: string | null
+  // Detalle de transferencia (si el método es "Transferencia")
+  transferencia_banco: string | null
+  transferencia_referencia: string | null
+  transferencia_comprobante: string | null
 }
 
 // Devolución / nota de crédito sobre una factura (total o parcial)
