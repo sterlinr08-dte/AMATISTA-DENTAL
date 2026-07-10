@@ -86,11 +86,21 @@ export default function CuentasPorCobrar() {
     if (abonoMonto <= 0) return alert('El abono debe ser mayor que 0')
     if (abonoMonto > abonoFactura.saldo + 0.01) return alert(`El abono no puede ser mayor que el saldo (${money(abonoFactura.saldo)})`)
     setSaving(true)
+    let cajaId: string | null = null
+    if (abonoMetodo === 'Efectivo') {
+      const { data: caja } = await supabase.from('caja_sesiones').select('id').eq('estado', 'ABIERTA').order('abierta_at', { ascending: false }).limit(1).maybeSingle()
+      cajaId = (caja as any)?.id ?? null
+      if (!cajaId && !confirm('No hay una caja abierta. El abono se registrará, pero no quedará en el arqueo de ninguna caja. ¿Continuar?')) {
+        setSaving(false)
+        return
+      }
+    }
     const { error } = await supabase.from('factura_abonos').insert({
       factura_id: abonoFactura.id,
       fecha: hoyISO(),
       monto: abonoMonto,
       metodo_pago: abonoMetodo,
+      caja_id: cajaId,
       registrado_por: perfil?.nombre || perfil?.username || null,
       notas: abonoNotas || null,
     })
@@ -98,10 +108,20 @@ export default function CuentasPorCobrar() {
       setSaving(false)
       return alert('Error al registrar el abono: ' + error.message)
     }
+    if (abonoMetodo === 'Efectivo' && cajaId) {
+      const { error: em } = await supabase.from('caja_movimientos').insert({
+        caja_id: cajaId,
+        tipo: 'ENTRADA',
+        concepto: `Abono ${codigoFactura(abonoFactura)} · ${abonoFactura.cliente_nombre ?? 'Cliente'}`,
+        monto: abonoMonto,
+        factura_id: abonoFactura.id,
+      })
+      if (em) { setSaving(false); return alert('Abono guardado, pero falló el registro en caja: ' + em.message) }
+    }
     // Si el abono salda la deuda, marcar la factura como PAGADA
     const nuevoSaldo = abonoFactura.saldo - abonoMonto
     if (nuevoSaldo <= 0.01) {
-      await supabase.from('facturas').update({ estado: 'PAGADA' }).eq('id', abonoFactura.id)
+      await supabase.from('facturas').update({ estado: 'PAGADA', metodo_pago: abonoMetodo, caja_id: cajaId }).eq('id', abonoFactura.id)
     }
     if (imprimir) {
       setRecibo({
