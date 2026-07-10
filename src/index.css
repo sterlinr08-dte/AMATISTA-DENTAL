@@ -216,8 +216,15 @@ body.modal-abierto .contenido-principal {
     font-weight: 700 !important;
     opacity: 1 !important;
   }
+  /* Logo y QR sí se imprimen (el ticket premium los usa). */
   .print-area img {
-    display: none !important;
+    display: block !important;
+  }
+  /* Barra/etiqueta invertida: texto blanco sobre fondo negro (pie del ticket). */
+  .print-area .inv,
+  .print-area .inv * {
+    color: #fff !important;
+    background: #000 !important;
   }
   .no-print {
     display: none !important;
