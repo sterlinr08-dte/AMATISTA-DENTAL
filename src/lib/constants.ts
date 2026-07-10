@@ -57,7 +57,7 @@ export const ESTADOS_MOBILIARIO: { value: 'BUENO' | 'REGULAR' | 'DANADO'; label:
   { value: 'DANADO', label: 'Dañado' },
 ]
 
-export const METODOS_PAGO = ['Efectivo', 'Tarjeta', 'Transferencia', 'PayPal', 'Otro']
+export const METODOS_PAGO = ['Efectivo', 'Tarjeta', 'Transferencia', 'Cheque', 'PayPal', 'Otro']
 
 export const ITBIS_RATE = 0.18 // 18% (RD)
 
