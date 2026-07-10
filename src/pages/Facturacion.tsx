@@ -5,6 +5,7 @@ import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
 import { conectarQZ } from '../lib/impresora'
 import { emitirECF, construirUrlQrECF, ECF_ESTADO_LABEL, type EcfResultado, type EcfFacturaPayload, type EcfConfig } from '../lib/ecf'
+import TicketFactura from '../components/TicketFactura'
 import { Cliente, Factura, FacturaItem, Servicio, Articulo, Empleado, EstadoFactura, TipoVenta } from '../types'
 import { money, fechaCorta, hoyISO, codigoArticulo, codigoFactura, codigoCliente } from '../lib/format'
 import { ITBIS_RATE } from '../lib/constants'
@@ -1404,55 +1405,22 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
       <Modal open={!!verId} title={`Factura ${facturaVista ? codigoFactura(facturaVista) : ''}`} onClose={() => setVerId(null)}>
         {facturaVista && (
           <div id="factura-print" className="print-area space-y-3">
-            <div className="text-center">
-              <img src={`${import.meta.env.BASE_URL}${negocio.logo}`} alt={negocio.nombre} className="mx-auto mb-2 h-20 rounded-lg bg-white object-contain" />
-              <p className="font-display text-xl font-bold text-brand-800">{negocio.nombre}</p>
-              {negocio.rnc && <p className="text-xs text-slate-500">RNC: {negocio.rnc}</p>}
-              <p className="text-xs text-slate-500">{negocio.direccion} · {negocio.referencia}</p>
-              <p className="text-xs text-slate-500">Tel {negocio.telefono} · WhatsApp {negocio.whatsapp} · {negocio.instagram}</p>
-              <p className="mt-1 text-xs font-medium text-slate-600">Factura {codigoFactura(facturaVista)} · {facturaVista.tipo_venta === 'CREDITO' ? 'Crédito' : 'Contado'} · {fechaCorta(facturaVista.fecha)}</p>
-            </div>
-            <div className="text-sm text-slate-600">
-              <p><span className="font-medium">Cliente:</span> {(() => { const cl = clientes.find((c) => c.id === facturaVista.cliente_id); return cl ? `${codigoCliente(cl.codigo)} · ${facturaVista.cliente_nombre}` : facturaVista.cliente_nombre })()}</p>
-              {facturaVista.ncf && <p><span className="font-medium">NCF:</span> {facturaVista.ncf}</p>}
-              {facturaVista.comprador_rnc && <p><span className="font-medium">RNC:</span> {facturaVista.comprador_rnc}</p>}
-              {facturaVista.ecf_estado && (
-                <p className="no-print">
-                  <span className="font-medium">e-CF:</span>{' '}
-                  <span className={`badge ${ECF_ESTADO_LABEL[facturaVista.ecf_estado]?.color || 'bg-slate-100 text-slate-600'}`}>
-                    {ECF_ESTADO_LABEL[facturaVista.ecf_estado]?.label || facturaVista.ecf_estado}
-                  </span>
-                </p>
-              )}
-              <p><span className="font-medium">Estado:</span> {facturaVista.estado}</p>
-              <p><span className="font-medium">Pago:</span> {facturaVista.metodo_pago}</p>
-            </div>
-            <table className="w-full text-sm">
-              <thead className="border-b text-left text-xs text-slate-600">
-                <tr><th className="py-1">Descripción</th><th className="py-1 text-center">Cant.</th><th className="py-1 text-right">Importe</th></tr>
-              </thead>
-              <tbody>
-                {verItems.map((it) => (
-                  <tr key={it.id} className="border-b border-slate-50">
-                    <td className="py-1">
-                      {it.descripcion}
-                      {(it as any).empleado?.nombre && <span className="block text-xs text-slate-600">por {(it as any).empleado.nombre}</span>}
-                    </td>
-                    <td className="py-1 text-center">{it.cantidad}</td>
-                    <td className="py-1 text-right">{money(it.importe)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="space-y-0.5 text-sm">
-              <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>{money(facturaVista.subtotal)}</span></div>
-              {facturaVista.descuento > 0 && <div className="flex justify-between text-slate-600"><span>Descuento</span><span>- {money(facturaVista.descuento)}</span></div>}
-              {facturaVista.itbis > 0 && <div className="flex justify-between text-slate-600"><span>ITBIS</span><span>{money(facturaVista.itbis)}</span></div>}
-              <div className="flex justify-between border-t pt-1 text-base font-bold text-slate-800"><span>Total</span><span>{money(facturaVista.total)}</span></div>
-              {(devueltoPorFactura[facturaVista.id] ?? 0) > 0 && (
-                <div className="flex justify-between font-semibold text-rose-600"><span>Devuelto</span><span>- {money(devueltoPorFactura[facturaVista.id])}</span></div>
-              )}
-            </div>
+            <TicketFactura
+              factura={facturaVista}
+              items={verItems}
+              negocio={negocio}
+              clienteCodigo={clientes.find((c) => c.id === facturaVista.cliente_id)?.codigo ?? null}
+              clienteTelefono={clientes.find((c) => c.id === facturaVista.cliente_id)?.telefono ?? null}
+              devuelto={devueltoPorFactura[facturaVista.id] ?? 0}
+            />
+            {facturaVista.ecf_estado && (
+              <p className="no-print text-center text-sm">
+                <span className="font-medium">e-CF:</span>{' '}
+                <span className={`badge ${ECF_ESTADO_LABEL[facturaVista.ecf_estado]?.color || 'bg-slate-100 text-slate-600'}`}>
+                  {ECF_ESTADO_LABEL[facturaVista.ecf_estado]?.label || facturaVista.ecf_estado}
+                </span>
+              </p>
+            )}
             <div className="no-print flex flex-wrap gap-2">
               {facturaVista.estado === 'PAGADA' && puedeAnular && (
                 <button className="btn-ghost flex-1" onClick={() => abrirDevolucion(facturaVista)}>
