@@ -35,6 +35,8 @@ export interface Negocio {
   prefijo_mobiliario: string
   // Recordatorios de citas (WhatsApp)
   wa_plantilla: string
+  // % de descuento máximo que se puede aplicar sin el permiso "descuento sin límite"
+  descuento_limite_pct: number
 }
 
 const DEFAULTS: Negocio = {
@@ -49,6 +51,7 @@ const DEFAULTS: Negocio = {
   ecf_ambiente: 'prueba',
   ecf_emision_auto: false,
   wa_plantilla: '',
+  descuento_limite_pct: 100,
 }
 
 interface NegocioContextValue {
@@ -87,6 +90,7 @@ export function NegocioProvider({ children }: { children: ReactNode }) {
         ecf_ambiente: (data.ecf_ambiente === 'produccion' ? 'produccion' : 'prueba'),
         ecf_emision_auto: data.ecf_emision_auto ?? false,
         wa_plantilla: data.wa_plantilla ?? '',
+        descuento_limite_pct: Number(data.descuento_limite_pct ?? DEFAULTS.descuento_limite_pct),
         prefijo_caja: data.prefijo_caja ?? DEFAULTS.prefijo_caja,
         prefijo_gasto: data.prefijo_gasto ?? DEFAULTS.prefijo_gasto,
         prefijo_pago: data.prefijo_pago ?? DEFAULTS.prefijo_pago,
