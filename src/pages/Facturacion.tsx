@@ -1,20 +1,37 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Printer, Ban, X, Search, Receipt, UserPlus, Undo2, Settings, HandCoins } from 'lucide-react'
+import { Plus, Trash2, Printer, Ban, X, Search, Receipt, UserPlus, Undo2, Settings, HandCoins, FileText, DollarSign, CreditCard, ArrowLeftRight, Wallet as WalletIcon, MoreHorizontal, Layers, Share2, Eye, Lock, Unlock, Pencil } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
 import { conectarQZ } from '../lib/impresora'
 import { emitirECF, construirUrlQrECF, ECF_ESTADO_LABEL, type EcfResultado, type EcfFacturaPayload, type EcfConfig } from '../lib/ecf'
 import TicketFactura from '../components/TicketFactura'
-import { Cliente, Factura, FacturaItem, Servicio, Articulo, Empleado, EstadoFactura, TipoVenta } from '../types'
-import { money, fechaCorta, hoyISO, codigoArticulo, codigoFactura, codigoCliente } from '../lib/format'
+import { Cliente, Factura, FacturaItem, Servicio, Articulo, Empleado, EstadoFactura, TipoVenta, CajaSesion } from '../types'
+import { money, fechaCorta, hoyISO, codigoArticulo, codigoFactura, codigoCliente, conPrefijo } from '../lib/format'
 import { ITBIS_RATE, METODOS_PAGO } from '../lib/constants'
 import { useAuth } from '../lib/auth'
 import { useNegocio } from '../lib/negocio'
+import { setPantallaCompletaAbierta } from '../lib/pantallaCompleta'
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
 import Modal from '../components/Modal'
 import DataTable from '../components/DataTable'
+
+// Ícono por método de pago (métodos simples; "Pago mixto" es un modo aparte)
+const METODO_ICONO: Record<string, typeof DollarSign> = {
+  Efectivo: DollarSign,
+  Tarjeta: CreditCard,
+  Transferencia: ArrowLeftRight,
+  Cheque: FileText,
+  PayPal: WalletIcon,
+  Otro: MoreHorizontal,
+}
+
+// Línea de un pago mixto (varios métodos para una misma factura)
+interface LineaPagoMixto {
+  metodo: string
+  monto: number
+}
 
 interface LineaTmp {
   servicio_id: string
@@ -62,6 +79,8 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   const puedeModificarLineas = puedeAccion('facturas.modificar_lineas')
   const puedeCambiarFecha = puedeAccion('facturas.cambiar_fecha')
   const puedeCobrarPendiente = puedeAccion('facturas.cobrar')
+  const puedeDescuentoSinLimite = puedeAccion('facturas.descuento_sin_limite')
+  const puedeModificarImpuestos = puedeAccion('facturas.modificar_impuestos')
 
   const [facturas, setFacturas] = useState<Factura[]>([])
   const [qzListo, setQzListo] = useState(false)   // impresión directa (QZ Tray) conectada
@@ -92,9 +111,31 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   const [clienteNombre, setClienteNombre] = useState('')
   const [fecha, setFecha] = useState(hoyISO())
   const [tipoVenta, setTipoVenta] = useState<TipoVenta>('CONTADO')
-  // Cobrar de una vez al crear (solo ventas de contado nuevas): evita el paso aparte en Caja.
-  const [cobrarAhora, setCobrarAhora] = useState(true)
+  // Estado de la factura al guardar (solo aplica a ventas de contado nuevas):
+  // "pendiente" no cobra nada; "cobrar" muestra métodos de pago y cobra de una vez.
+  const [estadoPago, setEstadoPago] = useState<'pendiente' | 'cobrar'>('cobrar')
   const [metodoCobroNueva, setMetodoCobroNueva] = useState('Efectivo')
+  const [montoRecibido, setMontoRecibido] = useState(0)
+  // Detalle de tarjeta / transferencia (opcional, se guarda junto al pago)
+  const [tarjetaTipo, setTarjetaTipo] = useState('')
+  const [tarjetaUltimos4, setTarjetaUltimos4] = useState('')
+  const [tarjetaAutorizacion, setTarjetaAutorizacion] = useState('')
+  const [tarjetaTerminal, setTarjetaTerminal] = useState('')
+  const [transferenciaBanco, setTransferenciaBanco] = useState('')
+  const [transferenciaReferencia, setTransferenciaReferencia] = useState('')
+  const [transferenciaComprobante, setTransferenciaComprobante] = useState('')
+  // Pago mixto: varias líneas de método + monto
+  const [pagosMixtos, setPagosMixtos] = useState<LineaPagoMixto[]>([{ metodo: 'Efectivo', monto: 0 }, { metodo: 'Tarjeta', monto: 0 }])
+  // Caja abierta actual (para mostrar el estado y validar el cobro en efectivo)
+  const [cajaAbierta, setCajaAbierta] = useState<CajaSesion | null>(null)
+  // Confirmación final antes de guardar, y pantalla de éxito después de guardar
+  const [confirmando, setConfirmando] = useState<'pendiente' | 'cobrar' | null>(null)
+  const [facturaGuardada, setFacturaGuardada] = useState<Factura | null>(null)
+  // Crédito: vencimiento, plazo, inicial y observaciones
+  const [creditoVencimiento, setCreditoVencimiento] = useState('')
+  const [creditoPlazoDias, setCreditoPlazoDias] = useState(30)
+  const [creditoInicial, setCreditoInicial] = useState(0)
+  const [creditoObservaciones, setCreditoObservaciones] = useState('')
   // Cobrar una factura de contado que quedó PENDIENTE (sin pasar por Caja).
   const [cobrarPendiente, setCobrarPendiente] = useState<Factura | null>(null)
   const [metodoCobroPendiente, setMetodoCobroPendiente] = useState('Efectivo')
@@ -103,6 +144,7 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   const [descuento, setDescuento] = useState(0)               // descuento como monto (RD$)
   const [descuentoModo, setDescuentoModo] = useState<'monto' | 'pct'>('monto')
   const [descuentoPct, setDescuentoPct] = useState(0)          // descuento como % del subtotal
+  const [descuentoMotivo, setDescuentoMotivo] = useState('')
   const [notas, setNotas] = useState('')
   const [lineas, setLineas] = useState<LineaTmp[]>([])
   // Tratamientos realizados (del plan) pendientes de facturar para el paciente elegido.
@@ -124,6 +166,9 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   // Buscador de cliente (combobox)
   const [buscarCliente, setBuscarCliente] = useState('')
   const [clienteFocus, setClienteFocus] = useState(false)
+  const [clienteGenerico, setClienteGenerico] = useState(false)
+  // Fila de servicio/artículo expandida (para editar cantidad/precio/empleado)
+  const [lineaExpandida, setLineaExpandida] = useState<number | null>(null)
 
   // Comprobante fiscal DGII (solo si está activo en Configuración)
   const [tipoComprobante, setTipoComprobante] = useState<'consumo' | 'credito'>('consumo')
@@ -319,6 +364,19 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     return () => { cancel = true; clearInterval(t) }
   }, [])
 
+  // Mientras la pantalla de Nueva venta / Editar esté abierta, ocultar la
+  // burbuja flotante de chat (no debe tapar campos ni el botón de guardar).
+  useEffect(() => {
+    setPantallaCompletaAbierta(open)
+    return () => setPantallaCompletaAbierta(false)
+  }, [open])
+
+  // Caja abierta actual (para mostrar su estado y validar el cobro en efectivo)
+  async function cargarCajaAbierta() {
+    const { data } = await supabase.from('caja_sesiones').select('*').eq('estado', 'ABIERTA').order('abierta_at', { ascending: false }).limit(1).maybeSingle()
+    setCajaAbierta((data as CajaSesion) ?? null)
+  }
+
   const subtotal = lineas.reduce((s, l) => s + l.cantidad * l.precio_unit, 0)
   // Descuento efectivo en RD$: por % del subtotal o por monto fijo (nunca mayor que el subtotal)
   const descuentoMonto = Math.min(subtotal, descuentoModo === 'pct' ? subtotal * (descuentoPct / 100) : descuento)
@@ -327,6 +385,22 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   const total = baseImponible + itbis
   // En una cuenta ya creada (editando), descuento e ITBIS quedan protegidos salvo autorización
   const protegerCuenta = !!editId && !puedeModificarLineas
+  // % de descuento real sobre el subtotal (para comparar contra el límite configurado)
+  const descuentoPctEfectivo = subtotal > 0 ? (descuentoMonto / subtotal) * 100 : 0
+  const descuentoExcedeLimite = !puedeDescuentoSinLimite && descuentoPctEfectivo > negocio.descuento_limite_pct + 0.01
+  const puedeEditarImpuestos = !editId || puedeModificarImpuestos
+  const pagosMixtosSuma = pagosMixtos.reduce((s, p) => s + Number(p.monto || 0), 0)
+  const balancePendienteCredito = Math.max(0, total - creditoInicial)
+  const cobrarDeUnaVezUI = !editId && tipoVenta === 'CONTADO' && estadoPago === 'cobrar' && puedeCobrarPendiente
+  const montoEfectivoAPagar = metodoCobroNueva === 'Mixto'
+    ? pagosMixtos.filter((p) => p.metodo === 'Efectivo').reduce((s, p) => s + Number(p.monto || 0), 0)
+    : (metodoCobroNueva === 'Efectivo' ? total : 0)
+  const cambioEfectivo = montoRecibido - montoEfectivoAPagar
+
+  useEffect(() => {
+    if (open && cobrarDeUnaVezUI) cargarCajaAbierta()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cobrarDeUnaVezUI])
 
   // Clientes que coinciden con la búsqueda (nombre, código o teléfono)
   const clientesFiltrados = (() => {
@@ -346,12 +420,22 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     setBuscarCliente(fijo ? `${codigoCliente(fijo.codigo)} · ${fijo.nombre}` : '')
     setFecha(hoyISO())
     setTipoVenta('CONTADO')
-    setCobrarAhora(true)
+    setEstadoPago('cobrar')
     setMetodoCobroNueva('Efectivo')
+    setMontoRecibido(0)
+    setTarjetaTipo(''); setTarjetaUltimos4(''); setTarjetaAutorizacion(''); setTarjetaTerminal('')
+    setTransferenciaBanco(''); setTransferenciaReferencia(''); setTransferenciaComprobante('')
+    setPagosMixtos([{ metodo: 'Efectivo', monto: 0 }, { metodo: 'Tarjeta', monto: 0 }])
+    setCreditoVencimiento(''); setCreditoPlazoDias(30); setCreditoInicial(0); setCreditoObservaciones('')
+    setConfirmando(null)
+    setFacturaGuardada(null)
+    setClienteGenerico(false)
+    setLineaExpandida(null)
     setAplicaItbis(false)
     setDescuento(0)
     setDescuentoModo('monto')
     setDescuentoPct(0)
+    setDescuentoMotivo('')
     setNotas('')
     setLineas([])
     setCantOriginal({})
@@ -382,11 +466,20 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     }
     setFecha(f.fecha)
     setTipoVenta(f.tipo_venta ?? 'CONTADO')
-    setCobrarAhora(false)
+    setEstadoPago('pendiente')
+    setConfirmando(null)
+    setFacturaGuardada(null)
+    setClienteGenerico(!f.cliente_id)
+    setLineaExpandida(null)
+    setCreditoVencimiento(f.credito_vencimiento ?? '')
+    setCreditoPlazoDias(f.credito_plazo_dias ?? 30)
+    setCreditoInicial(Number(f.credito_inicial ?? 0))
+    setCreditoObservaciones(f.credito_observaciones ?? '')
     setAplicaItbis(Number(f.itbis) > 0)
     setDescuento(Number(f.descuento))
     setDescuentoModo('monto')
     setDescuentoPct(0)
+    setDescuentoMotivo(f.descuento_motivo ?? '')
     setNotas(f.notas ?? '')
     setBuscarItem('')
     setLineas(
@@ -413,7 +506,7 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     setLineas((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
   }
 
-  async function guardar(imprimir = false) {
+  async function guardar() {
     const items = lineas.filter((l) => l.descripcion.trim() && l.cantidad > 0)
     if (items.length === 0) return alert('Agrega al menos un ítem con descripción')
     // No permitir dejar la existencia en negativo (salvo administración)
@@ -428,14 +521,26 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
         }
       }
     }
+    // Validaciones adicionales del rediseño móvil
+    if (total < 0) return alert('El total no puede ser negativo.')
+    if (descuentoExcedeLimite) {
+      return alert(`El descuento (${descuentoPctEfectivo.toFixed(1)}%) supera el límite de ${negocio.descuento_limite_pct}% sin autorización. Reduce el descuento o pide a un gerente/administrador que lo aplique.`)
+    }
+    if (tipoVenta === 'CREDITO' && !creditoVencimiento) {
+      return alert('Indica la fecha de vencimiento del crédito.')
+    }
+    const cobrarDeUnaVez = !editId && tipoVenta === 'CONTADO' && estadoPago === 'cobrar' && puedeCobrarPendiente
+    const esMixto = cobrarDeUnaVez && metodoCobroNueva === 'Mixto'
+    if (esMixto && Math.abs(pagosMixtosSuma - total) > 0.01) {
+      return alert(`La suma del pago mixto (${money(pagosMixtosSuma)}) no coincide con el total (${money(total)}).`)
+    }
     // Si se va a cobrar de una vez, verificar la caja ANTES de crear nada (para
     // poder cancelar limpio si el usuario no confirma cobrar sin caja abierta).
     let cajaIdCobro: string | null = null
-    const cobrarDeUnaVez = !editId && tipoVenta === 'CONTADO' && cobrarAhora && puedeCobrarPendiente
-    if (cobrarDeUnaVez) {
+    if (cobrarDeUnaVez && montoEfectivoAPagar > 0) {
       const { data: caja } = await supabase.from('caja_sesiones').select('id').eq('estado', 'ABIERTA').order('abierta_at', { ascending: false }).limit(1).maybeSingle()
       cajaIdCobro = (caja as any)?.id ?? null
-      if (!cajaIdCobro && metodoCobroNueva === 'Efectivo' && !confirm('No hay una caja abierta, así que este cobro en efectivo NO quedará registrado en el arqueo de caja (puede causar descuadre). ¿Continuar de todos modos?')) {
+      if (!cajaIdCobro && !confirm('No hay una caja abierta, así que este cobro en efectivo NO quedará registrado en el arqueo de caja (puede causar descuadre). ¿Continuar de todos modos?')) {
         return
       }
     }
@@ -451,6 +556,13 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
       itbis,
       total,
       notas: notas || null,
+      descuento_motivo: descuentoMotivo || null,
+      descuento_tipo: descuentoModo === 'pct' ? 'PORCENTAJE' : 'MONTO',
+      descuento_porcentaje: descuentoModo === 'pct' ? descuentoPct : 0,
+      credito_vencimiento: tipoVenta === 'CREDITO' ? (creditoVencimiento || null) : null,
+      credito_plazo_dias: tipoVenta === 'CREDITO' ? creditoPlazoDias : null,
+      credito_inicial: tipoVenta === 'CREDITO' ? creditoInicial : 0,
+      credito_observaciones: tipoVenta === 'CREDITO' ? (creditoObservaciones || null) : null,
     }
 
     // Tipo de comprobante fiscal para la factura NUEVA (si está activo).
@@ -536,6 +648,17 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
       }
       facturaNueva = fact as Factura
       facturaId = (fact as Factura).id
+      // El RPC crea la factura con sus campos base; el detalle de descuento y
+      // crédito (metadatos, no afectan el total) se completa en un paso aparte.
+      await supabase.from('facturas').update({
+        descuento_motivo: datos.descuento_motivo,
+        descuento_tipo: datos.descuento_tipo,
+        descuento_porcentaje: datos.descuento_porcentaje,
+        credito_vencimiento: datos.credito_vencimiento,
+        credito_plazo_dias: datos.credito_plazo_dias,
+        credito_inicial: datos.credito_inicial,
+        credito_observaciones: datos.credito_observaciones,
+      }).eq('id', facturaId)
     }
 
     // e-CF: si es factura electrónica nueva con e-NCF, registrar/enviar el comprobante.
@@ -575,41 +698,99 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
       }).eq('id', facturaId)
     }
 
-    // Cobrar de una vez (factura nueva de contado con "Cobrar ahora" marcado).
+    // Cobrar de una vez (factura nueva de contado con "Guardar y cobrar").
     if (cobrarDeUnaVez && facturaId) {
+      const metodoFactura = esMixto ? 'Mixto' : metodoCobroNueva
       const { error: eCobro } = await supabase.from('facturas')
-        .update({ estado: 'PAGADA', metodo_pago: metodoCobroNueva, caja_id: cajaIdCobro })
+        .update({ estado: 'PAGADA', metodo_pago: metodoFactura, caja_id: cajaIdCobro })
         .eq('id', facturaId)
       if (eCobro) {
-        alert('La factura se creó, pero no se pudo marcar como pagada: ' + eCobro.message + '\n\nPuedes cobrarla luego desde Caja.')
+        alert('La factura se creó, pero no se pudo marcar como pagada: ' + eCobro.message + '\n\nPuedes cobrarla luego desde Facturación.')
       } else {
-        await supabase.from('factura_pagos').insert({
+        // Una línea por método (pago mixto = varias líneas; los demás, una sola).
+        const lineasPago = esMixto
+          ? pagosMixtos.filter((p) => Number(p.monto) > 0)
+          : [{ metodo: metodoCobroNueva, monto: total }]
+        const registradoPor = perfil?.nombre || perfil?.username || 'Usuario'
+        const payloadPagos = lineasPago.map((p) => ({
           factura_id: facturaId,
-          metodo: metodoCobroNueva,
-          monto: total,
+          metodo: p.metodo,
+          monto: Number(p.monto),
           caja_id: cajaIdCobro,
-          registrado_por: perfil?.nombre || perfil?.username || 'Usuario',
-        })
-        if (metodoCobroNueva === 'Efectivo' && cajaIdCobro) {
+          registrado_por: registradoPor,
+          tarjeta_tipo: p.metodo === 'Tarjeta' ? (tarjetaTipo || null) : null,
+          tarjeta_ultimos4: p.metodo === 'Tarjeta' ? (tarjetaUltimos4 || null) : null,
+          tarjeta_autorizacion: p.metodo === 'Tarjeta' ? (tarjetaAutorizacion || null) : null,
+          tarjeta_terminal: p.metodo === 'Tarjeta' ? (tarjetaTerminal || null) : null,
+          transferencia_banco: p.metodo === 'Transferencia' ? (transferenciaBanco || null) : null,
+          transferencia_referencia: p.metodo === 'Transferencia' ? (transferenciaReferencia || null) : null,
+          transferencia_comprobante: p.metodo === 'Transferencia' ? (transferenciaComprobante || null) : null,
+        }))
+        await supabase.from('factura_pagos').insert(payloadPagos)
+        if (montoEfectivoAPagar > 0 && cajaIdCobro) {
           await supabase.from('caja_movimientos').insert({
             caja_id: cajaIdCobro,
             tipo: 'ENTRADA',
             concepto: `Factura ${facturaNueva ? codigoFactura(facturaNueva) : ''} · ${datos.cliente_nombre}`,
-            monto: total,
+            monto: montoEfectivoAPagar,
             factura_id: facturaId,
           })
         }
       }
     }
 
-    setSaving(false)
-    setOpen(false)
-    await cargar()
-    // Guardar e imprimir: abre el recibo de la factura recién guardada y lo manda a imprimir
-    if (imprimir && facturaId) {
-      await verDetalle({ id: facturaId } as Factura)
-      setTimeout(() => window.print(), 400)
+    // Inicial de una venta a crédito nueva (abono registrado igual que en Cuentas por cobrar).
+    if (!editId && tipoVenta === 'CREDITO' && creditoInicial > 0 && facturaId) {
+      const { data: cajaIni } = await supabase.from('caja_sesiones').select('id').eq('estado', 'ABIERTA').order('abierta_at', { ascending: false }).limit(1).maybeSingle()
+      const cajaIdIni = (cajaIni as any)?.id ?? null
+      await supabase.from('factura_abonos').insert({
+        factura_id: facturaId,
+        fecha: datos.fecha,
+        monto: creditoInicial,
+        metodo_pago: 'Efectivo',
+        caja_id: cajaIdIni,
+        registrado_por: perfil?.nombre || perfil?.username || null,
+        notas: 'Inicial al crear la factura',
+      })
+      if (cajaIdIni) {
+        await supabase.from('caja_movimientos').insert({
+          caja_id: cajaIdIni,
+          tipo: 'ENTRADA',
+          concepto: `Inicial ${facturaNueva ? codigoFactura(facturaNueva) : ''} · ${datos.cliente_nombre}`,
+          monto: creditoInicial,
+          factura_id: facturaId,
+        })
+      }
+      if (creditoInicial >= total - 0.01) {
+        await supabase.from('facturas').update({ estado: 'PAGADA', metodo_pago: 'Efectivo', caja_id: cajaIdIni }).eq('id', facturaId)
+      }
     }
+
+    setSaving(false)
+    setConfirmando(null)
+    if (!editId && facturaNueva) {
+      setFacturaGuardada({ ...facturaNueva, estado: cobrarDeUnaVez ? 'PAGADA' : facturaNueva.estado, metodo_pago: cobrarDeUnaVez ? (esMixto ? 'Mixto' : metodoCobroNueva) : facturaNueva.metodo_pago } as Factura)
+    } else {
+      setOpen(false)
+    }
+    await cargar()
+  }
+
+  // Valida lo esencial y abre la confirmación final antes de guardar de verdad.
+  function abrirConfirmacion(estado: 'pendiente' | 'cobrar') {
+    const items = lineas.filter((l) => l.descripcion.trim() && l.cantidad > 0)
+    if (items.length === 0) return alert('Agrega al menos un servicio o artículo.')
+    if (total < 0) return alert('El total no puede ser negativo.')
+    if (descuentoExcedeLimite) {
+      return alert(`El descuento (${descuentoPctEfectivo.toFixed(1)}%) supera el límite de ${negocio.descuento_limite_pct}% sin autorización.`)
+    }
+    if (tipoVenta === 'CREDITO' && !creditoVencimiento) return alert('Indica la fecha de vencimiento del crédito.')
+    if (estado === 'cobrar' && metodoCobroNueva === 'Mixto') {
+      const suma = pagosMixtos.reduce((s, p) => s + Number(p.monto || 0), 0)
+      if (Math.abs(suma - total) > 0.01) return alert(`La suma del pago mixto (${money(suma)}) no coincide con el total (${money(total)}).`)
+    }
+    setEstadoPago(estado)
+    setConfirmando(estado)
   }
 
   // Devuelve al stock los artículos de una factura
@@ -692,6 +873,17 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     setVerId(f.id)
     const { data } = await supabase.from('factura_items').select('*, empleado:empleados(nombre)').eq('factura_id', f.id)
     setVerItems((data as FacturaItem[]) ?? [])
+  }
+
+  // Comparte el resumen de una factura recién guardada (WhatsApp / lo que ofrezca el equipo).
+  async function compartirFactura(f: Factura) {
+    const texto = `${negocio.nombre}\nFactura ${codigoFactura(f)}\nCliente: ${f.cliente_nombre ?? 'Cliente'}\nTotal: ${money(f.total)}\nEstado: ${f.estado}`
+    if (navigator.share) {
+      try { await navigator.share({ title: `Factura ${codigoFactura(f)}`, text: texto }) } catch { /* el usuario canceló */ }
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(texto)
+      alert('Resumen copiado al portapapeles.')
+    }
   }
 
   // Imprime la factura en HOJA NORMAL TAMAÑO CARTA (ventana autónoma con logo,
@@ -1075,8 +1267,45 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
       </>)}
 
       {/* PANTALLA DE VENTA (a página completa, ya no es ventana emergente) */}
-      {open && (
-        <div className="mx-auto max-w-2xl">
+      {open && facturaGuardada && (
+        <div className="mx-auto max-w-md space-y-4 py-6 text-center">
+          <div className="flex flex-col items-center gap-2">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <HandCoins size={32} />
+            </span>
+            <h2 className="font-display text-xl font-bold text-slate-800">¡Factura guardada con éxito!</h2>
+            <p className="text-sm text-slate-500">La factura ha sido registrada correctamente.</p>
+          </div>
+          <div className="card grid grid-cols-2 gap-y-2 text-left text-sm">
+            <span className="text-slate-500">Número de factura</span>
+            <span className="text-right font-mono font-semibold text-slate-800">{codigoFactura(facturaGuardada)}</span>
+            <span className="text-slate-500">Estado</span>
+            <span className={`text-right font-semibold ${facturaGuardada.estado === 'PAGADA' ? 'text-emerald-600' : 'text-amber-600'}`}>{facturaGuardada.estado}</span>
+            <span className="text-slate-500">Total</span>
+            <span className="text-right font-bold text-slate-800">{money(facturaGuardada.total)}</span>
+            <span className="text-slate-500">Cliente</span>
+            <span className="truncate text-right font-semibold text-slate-800">{facturaGuardada.cliente_nombre || 'Cliente de contado'}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button className="btn-ghost" onClick={async () => { await verDetalle(facturaGuardada); setTimeout(() => window.print(), 400) }}>
+              <Printer size={16} /> Imprimir
+            </button>
+            <button className="btn-ghost" onClick={() => compartirFactura(facturaGuardada)}>
+              <Share2 size={16} /> Compartir
+            </button>
+            <button className="btn-ghost" onClick={() => verDetalle(facturaGuardada)}>
+              <Eye size={16} /> Ver factura
+            </button>
+            <button className="btn-primary" onClick={() => { setFacturaGuardada(null); nuevaFactura() }}>
+              <Plus size={16} /> Crear otra
+            </button>
+          </div>
+          <button className="btn-ghost w-full" onClick={() => { setFacturaGuardada(null); setOpen(false) }}>Volver a la lista</button>
+        </div>
+      )}
+
+      {open && !facturaGuardada && (
+        <div className="mx-auto max-w-2xl pb-6">
           <PageHeader
             title={editId ? 'Editar factura' : 'Nueva venta'}
             subtitle="Registra los servicios y productos a cobrar."
@@ -1086,381 +1315,537 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
               </button>
             }
           />
-          <div className="card space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Cliente</label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
-                  <input
-                    className="input pl-9"
-                    placeholder="Buscar cliente por nombre o código… (vacío = de contado)"
-                    value={buscarCliente}
-                    onChange={(e) => { setBuscarCliente(e.target.value); setClienteId('') }}
-                    onFocus={() => setClienteFocus(true)}
-                    onBlur={() => setTimeout(() => setClienteFocus(false), 150)}
-                  />
-                  {clienteId && (
-                    <button type="button" onClick={() => { setClienteId(''); setBuscarCliente('') }} title="Quitar cliente" className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-rose-600">
-                      <X size={15} />
-                    </button>
-                  )}
-                  {clienteFocus && (
-                    <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-pink-100 bg-white shadow-card">
-                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { setClienteId(''); setBuscarCliente(''); setClienteFocus(false) }} className="block w-full px-3 py-2 text-left text-sm text-slate-500 hover:bg-pink-50">
-                        — De contado —
+
+          <div className="space-y-3">
+            {/* 1. CLIENTE + 2. FECHA */}
+            <div className="card space-y-3">
+              <div>
+                <label className="label">Cliente</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
+                    <input
+                      className="input pl-9"
+                      placeholder="Buscar cliente o paciente…"
+                      value={buscarCliente}
+                      onChange={(e) => { setBuscarCliente(e.target.value); setClienteId(''); setClienteGenerico(false) }}
+                      onFocus={() => setClienteFocus(true)}
+                      onBlur={() => setTimeout(() => setClienteFocus(false), 150)}
+                    />
+                    {clienteId && (
+                      <button type="button" onClick={() => { setClienteId(''); setBuscarCliente('') }} title="Quitar cliente" className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-rose-600">
+                        <X size={15} />
                       </button>
-                      {clientesFiltrados.length === 0 ? (
-                        <p className="px-3 py-2 text-sm text-slate-500">Sin coincidencias</p>
-                      ) : (
-                        clientesFiltrados.map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { setClienteId(c.id); setBuscarCliente(`${codigoCliente(c.codigo)} · ${c.nombre}`); setClienteFocus(false) }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-pink-50"
-                          >
-                            <span className="font-mono font-semibold text-brand-700">{codigoCliente(c.codigo)}</span>
-                            <span className="truncate text-slate-700">{c.nombre}</span>
-                            {c.telefono && <span className="ml-auto shrink-0 text-xs text-slate-500">{c.telefono}</span>}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-                <button type="button" onClick={abrirCrearCliente} title="Crear cliente nuevo" className="btn-ghost shrink-0">
-                  <UserPlus size={16} /> Crear
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="label">Fecha</label>
-              <input
-                type="date"
-                className={`input ${!puedeCambiarFecha ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                disabled={!puedeCambiarFecha}
-                title={!puedeCambiarFecha ? 'La fecha es la de hoy. Solo administración puede cambiarla.' : undefined}
-              />
-              {!puedeCambiarFecha && (
-                <p className="mt-1 text-xs text-slate-500">Fecha de hoy. Solo administración puede cambiarla.</p>
-              )}
-            </div>
-          </div>
-          {!clienteId && (
-            <div>
-              <label className="label">Nombre (cliente de contado)</label>
-              <input className="input" value={clienteNombre} onChange={(e) => setClienteNombre(e.target.value)} placeholder="Opcional" />
-            </div>
-          )}
-
-          <div>
-            <label className="label">Tipo de venta</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setTipoVenta('CONTADO')}
-                className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${tipoVenta === 'CONTADO' ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-              >
-                Contado <span className="font-mono text-xs opacity-70">CO</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTipoVenta('CREDITO')}
-                className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${tipoVenta === 'CREDITO' ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-              >
-                Crédito <span className="font-mono text-xs opacity-70">CR</span>
-              </button>
-            </div>
-            <p className="mt-1 text-xs text-slate-600">Secuencia independiente por tipo: {tipoVenta === 'CREDITO' ? 'CR000001, CR000002… (crédito)' : 'CO000001, CO000002… (contado)'}.</p>
-          </div>
-
-          {/* Cobrar de una vez: solo aplica a facturas NUEVAS de contado, y solo si puede cobrar */}
-          {!editId && tipoVenta === 'CONTADO' && puedeCobrarPendiente && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
-              <label className="flex cursor-pointer items-center gap-2.5">
-                <input type="checkbox" checked={cobrarAhora} onChange={(e) => setCobrarAhora(e.target.checked)} className="h-4 w-4 accent-emerald-600" />
-                <span className="text-sm font-semibold text-emerald-800">Cobrar ahora (el paciente ya pagó)</span>
-              </label>
-              {cobrarAhora ? (
-                <>
-                  <p className="mt-1 text-xs text-emerald-700/80">La factura queda <b>PAGADA</b> de una vez, sin pasar por Caja.</p>
-                  <div className="mt-2">
-                    <label className="label">Método de pago</label>
-                    <div className="flex flex-wrap gap-2">
-                      {METODOS_PAGO.map((m) => (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => setMetodoCobroNueva(m)}
-                          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${metodoCobroNueva === m ? 'border-emerald-400 bg-emerald-100 text-emerald-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                        >
-                          {m}
-                        </button>
-                      ))}
-                    </div>
+                    )}
+                    {clienteFocus && (
+                      <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-pink-100 bg-white shadow-card">
+                        {clientesFiltrados.length === 0 ? (
+                          <p className="px-3 py-2 text-sm text-slate-500">Sin coincidencias</p>
+                        ) : (
+                          clientesFiltrados.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { setClienteId(c.id); setBuscarCliente(''); setClienteGenerico(false); setClienteFocus(false) }}
+                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-pink-50"
+                            >
+                              <span className="font-mono font-semibold text-brand-700">{codigoCliente(c.codigo)}</span>
+                              <span className="truncate text-slate-700">{c.nombre}</span>
+                              {c.telefono && <span className="ml-auto shrink-0 text-xs text-slate-500">{c.telefono}</span>}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
-                </>
-              ) : (
-                <p className="mt-1 text-xs text-slate-600">La factura quedará <b>PENDIENTE</b>; se cobra después desde Caja o Cuentas por cobrar.</p>
-              )}
-            </div>
-          )}
-
-          {/* Comprobante fiscal DGII (solo si está activo en Configuración) */}
-          {negocio.comprobantes_activos && !editId && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3">
-              <label className="label">Comprobante fiscal</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTipoComprobante('consumo')}
-                  className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${tipoComprobante === 'consumo' ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                >
-                  Consumo <span className="font-mono text-xs opacity-70">{CODIGO_COMPROBANTE.consumo[negocio.modo_comprobante]}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTipoComprobante('credito')}
-                  className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${tipoComprobante === 'credito' ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                >
-                  Crédito Fiscal <span className="font-mono text-xs opacity-70">{CODIGO_COMPROBANTE.credito[negocio.modo_comprobante]}</span>
-                </button>
-              </div>
-              {tipoComprobante === 'credito' && (
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <div>
-                    <span className="text-xs font-medium text-slate-600">RNC / Cédula del comprador</span>
-                    <input className="input" value={compradorRnc} onChange={(e) => setCompradorRnc(e.target.value)} placeholder="1-31-XXXXX-X" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-medium text-slate-600">Razón social</span>
-                    <input className="input" value={compradorRazon} onChange={(e) => setCompradorRazon(e.target.value)} placeholder="Nombre fiscal del cliente" />
-                  </div>
-                </div>
-              )}
-              <p className="mt-2 text-[11px] text-amber-700/80">
-                Modo: {negocio.modo_comprobante === 'electronico' ? 'e-CF electrónico' : 'NCF tradicional'}. El número se asigna automáticamente al guardar.
-              </p>
-            </div>
-          )}
-
-          {/* Tratamientos realizados por el odontólogo, pendientes de facturar */}
-          {pendientesPlan.length > 0 && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold text-emerald-800">
-                  Tratamientos realizados pendientes de facturar ({pendientesPlan.length})
-                </span>
-                <button type="button" className="btn-ghost !py-1 text-xs" onClick={agregarTodosDelPlan}>
-                  <Plus size={14} /> Agregar todos
-                </button>
-              </div>
-              <div className="space-y-1.5">
-                {pendientesPlan.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => agregarDesdePlan(p)}
-                    className="flex w-full items-center justify-between gap-2 rounded-lg border border-emerald-100 bg-white px-3 py-2 text-left text-sm transition hover:bg-emerald-50"
-                  >
-                    <span className="text-slate-700">
-                      {p.descripcion}
-                      {p.diente != null && <span className="text-slate-400"> · diente {p.diente}</span>}
-                    </span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <span className="font-semibold text-slate-700">{money(p.precio_unit)}</span>
-                      <Plus size={14} className="text-emerald-600" />
-                    </span>
+                  <button type="button" onClick={abrirCrearCliente} title="Crear cliente nuevo" className="btn-ghost shrink-0">
+                    <UserPlus size={16} /> Crear
                   </button>
-                ))}
+                </div>
               </div>
-              <p className="mt-2 text-[11px] text-emerald-700/80">
-                Vienen del plan del paciente (marcados “Realizado” por el odontólogo). Al facturarlos no se vuelven a ofrecer.
-              </p>
-            </div>
-          )}
 
-          <div>
-            <label className="label">Buscar servicio o artículo</label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => { setBuscarCat(''); setCatTab('catalogo'); setCatalogoOpen(true) }}
-                title="Ver catálogo e historial de facturas"
-                className="absolute left-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-600 transition hover:bg-brand-50 hover:text-brand-600"
-              >
-                <Search size={16} />
-              </button>
-              <input
-                className="input pl-9"
-                placeholder="Toca la lupa para ver todo, o escribe para buscar…"
-                value={buscarItem}
-                onChange={(e) => setBuscarItem(e.target.value)}
-              />
-              {q && (
-                <div className="absolute z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-pink-100 bg-white shadow-card">
-                  {resultados.length === 0 ? (
-                    <p className="px-3 py-2 text-sm text-slate-600">Sin coincidencias</p>
-                  ) : (
-                    resultados.map((r) => (
-                      <button
-                        key={`${r.tipo}:${r.id}`}
-                        type="button"
-                        onClick={() => agregarDesdeBusqueda(r)}
-                        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-pink-50"
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className={`badge ${r.tipo === 's' ? 'bg-brand-50 text-brand-700' : 'bg-amber-50 text-amber-700'}`}>
-                            {r.tipo === 's' ? 'Servicio' : 'Artículo'}
-                          </span>
-                          <span className="truncate text-slate-700">{r.nombre}</span>
-                          {r.tipo === 'a' && (
-                            <span className={`text-xs ${(r.stock ?? 0) <= 0 ? 'text-rose-500' : 'text-slate-600'}`}>
-                              {(r.stock ?? 0) <= 0 ? 'Sin existencia' : `Existencia: ${r.stock}`}
-                            </span>
-                          )}
-                        </span>
-                        <span className="shrink-0 font-semibold text-slate-800">{money(r.precio)}</span>
-                      </button>
-                    ))
+              {clienteSel && (
+                <div className="flex items-start justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2.5">
+                  <div className="min-w-0 text-sm">
+                    <p className="truncate font-semibold text-slate-800">{clienteSel.nombre}</p>
+                    <p className="truncate text-xs text-slate-500">
+                      Código: {codigoCliente(clienteSel.codigo)}
+                      {clienteSel.telefono ? ` · ${clienteSel.telefono}` : ''}
+                      {(clienteSel as any).documento ? ` · ${(clienteSel as any).documento}` : ''}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => { setClienteId(''); setBuscarCliente('') }} title="Cambiar cliente" className="shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-white hover:text-brand-600">
+                    <UserPlus size={15} />
+                  </button>
+                </div>
+              )}
+
+              {!clienteId && (
+                <>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                    <input type="checkbox" checked={clienteGenerico} onChange={(e) => setClienteGenerico(e.target.checked)} />
+                    Usar cliente genérico o de contado
+                  </label>
+                  {clienteGenerico && (
+                    <input className="input" value={clienteNombre} onChange={(e) => setClienteNombre(e.target.value)} placeholder="Nombre (opcional)" />
                   )}
+                </>
+              )}
+
+              <div>
+                <label className="label">Fecha</label>
+                <input
+                  type="date"
+                  className={`input ${!puedeCambiarFecha ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                  value={fecha}
+                  onChange={(e) => setFecha(e.target.value)}
+                  disabled={!puedeCambiarFecha}
+                  title={!puedeCambiarFecha ? 'La fecha es la de hoy. Solo administración puede cambiarla.' : undefined}
+                />
+                {!puedeCambiarFecha && <p className="mt-1 text-xs text-slate-500">Fecha de hoy. Solo administración puede cambiarla.</p>}
+              </div>
+            </div>
+
+            {/* 3. CONDICIÓN DE LA FACTURA */}
+            <div className="card space-y-3">
+              <label className="label">Condición de la factura</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setTipoVenta('CONTADO')} className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${tipoVenta === 'CONTADO' ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                  <DollarSign size={15} /> Contado
+                </button>
+                <button type="button" onClick={() => setTipoVenta('CREDITO')} className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${tipoVenta === 'CREDITO' ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                  <FileText size={15} /> Crédito
+                </button>
+              </div>
+
+              {tipoVenta === 'CREDITO' && (
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-xs font-medium text-slate-600">Fecha de vencimiento</span>
+                      <input type="date" className="input" value={creditoVencimiento} onChange={(e) => setCreditoVencimiento(e.target.value)} />
+                    </div>
+                    <div>
+                      <span className="text-xs font-medium text-slate-600">Plazo (días)</span>
+                      <input type="number" min={0} className="input" value={creditoPlazoDias || ''} onChange={(e) => setCreditoPlazoDias(Number(e.target.value))} />
+                    </div>
+                  </div>
+                  {!editId && (
+                    <div>
+                      <span className="text-xs font-medium text-slate-600">Inicial (opcional)</span>
+                      <input type="number" min={0} step={50} className="input" value={creditoInicial || ''} onChange={(e) => setCreditoInicial(Number(e.target.value))} />
+                    </div>
+                  )}
+                  <div className="flex justify-between rounded-lg bg-amber-50 px-3 py-2 text-sm">
+                    <span className="text-amber-700">Balance pendiente</span>
+                    <span className="font-bold text-amber-800">{money(editId ? total : balancePendienteCredito)}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs font-medium text-slate-600">Observaciones de crédito</span>
+                    <textarea className="input" rows={2} value={creditoObservaciones} onChange={(e) => setCreditoObservaciones(e.target.value)} placeholder="Opcional" />
+                  </div>
                 </div>
               )}
             </div>
-          </div>
 
-          <div>
-            <label className="label">Artículos o servicios agregados</label>
-            {editId && lineasOriginales > 0 && !puedeModificarLineas && (
-              <p className="mb-2 text-xs font-medium text-amber-600">Lo ya agregado (🔒) no se puede modificar ni eliminar sin autorización. Puedes seguir agregando consumo.</p>
-            )}
-            {lineas.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-6 text-center text-sm text-slate-600">
-                Busca arriba y toca un servicio o producto para agregarlo aquí.
-              </div>
-            ) : (
-              <div className="space-y-5">
-                {lineas.map((l, i) => {
-                  const esManual = !l.servicio_id && !l.articulo_id
-                  // Renglón ya agregado antes (cuenta abierta): no se puede modificar/eliminar sin autorización
-                  const bloqueado = i < lineasOriginales && !puedeModificarLineas
-                  return (
-                    <div key={i} className={`rounded-xl border-2 p-3 shadow-sm ${bloqueado ? 'border-slate-100 bg-slate-50' : 'border-slate-200 bg-white'}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        {esManual ? (
-                          <input
-                            className="input flex-1"
-                            placeholder="Concepto (ej: ajuste, recargo…)"
-                            value={l.descripcion}
-                            readOnly={bloqueado}
-                            onChange={(e) => setLinea(i, { descripcion: e.target.value })}
-                          />
-                        ) : (
-                          <span className="flex min-w-0 items-center gap-2 font-semibold text-slate-800">
-                            <span className={`badge ${l.servicio_id ? 'bg-brand-50 text-brand-700' : 'bg-amber-50 text-amber-700'}`}>
-                              {l.servicio_id ? 'Servicio' : 'Producto'}
-                            </span>
-                            <span className="truncate">{l.descripcion}</span>
-                          </span>
-                        )}
-                        {bloqueado ? (
-                          <span className="badge shrink-0 bg-slate-200 text-slate-500" title="Ya agregado · requiere autorización para modificar">🔒 Agregado</span>
-                        ) : (
-                          <button onClick={() => setLineas(lineas.filter((_, idx) => idx !== i))} className="rounded-lg p-1.5 text-slate-600 hover:bg-rose-50 hover:text-rose-600">
-                            <X size={16} />
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="mt-2">
-                        <span className="text-xs font-medium text-slate-600">Realizado por</span>
-                        <select className="input" value={l.empleado_id} onChange={(e) => setLinea(i, { empleado_id: e.target.value })}>
-                          <option value="">— Sin asignar —</option>
-                          {empleados.map((e) => (
-                            <option key={e.id} value={e.id}>{e.nombre}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="mt-2 grid grid-cols-3 gap-2">
-                        <div>
-                          <span className="text-xs font-medium text-slate-600">Cant.</span>
-                          <input type="number" min={1} className={`input ${bloqueado ? 'bg-slate-100 text-slate-500' : ''}`} value={l.cantidad || ''} readOnly={bloqueado} onChange={(e) => setLinea(i, { cantidad: Number(e.target.value) })} />
-                        </div>
-                        <div>
-                          <span className="text-xs font-medium text-slate-600">Precio</span>
-                          <input type="number" min={0} step={50} className={`input ${bloqueado ? 'bg-slate-100 text-slate-500' : ''}`} value={l.precio_unit || ''} readOnly={bloqueado} onChange={(e) => setLinea(i, { precio_unit: Number(e.target.value) })} />
-                        </div>
-                        <div>
-                          <span className="text-xs font-medium text-slate-600">Importe</span>
-                          <input className="input bg-slate-50" value={money(l.cantidad * l.precio_unit)} readOnly />
-                        </div>
-                      </div>
+            {/* Comprobante fiscal DGII (solo si está activo en Configuración) */}
+            {negocio.comprobantes_activos && !editId && (
+              <div className="card space-y-2">
+                <label className="label">Comprobante fiscal</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTipoComprobante('consumo')}
+                    className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${tipoComprobante === 'consumo' ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                  >
+                    Consumo <span className="font-mono text-xs opacity-70">{CODIGO_COMPROBANTE.consumo[negocio.modo_comprobante]}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipoComprobante('credito')}
+                    className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${tipoComprobante === 'credito' ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                  >
+                    Crédito Fiscal <span className="font-mono text-xs opacity-70">{CODIGO_COMPROBANTE.credito[negocio.modo_comprobante]}</span>
+                  </button>
+                </div>
+                {tipoComprobante === 'credito' && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <span className="text-xs font-medium text-slate-600">RNC / Cédula del comprador</span>
+                      <input className="input" value={compradorRnc} onChange={(e) => setCompradorRnc(e.target.value)} placeholder="1-31-XXXXX-X" />
                     </div>
-                  )
-                })}
+                    <div>
+                      <span className="text-xs font-medium text-slate-600">Razón social</span>
+                      <input className="input" value={compradorRazon} onChange={(e) => setCompradorRazon(e.target.value)} placeholder="Nombre fiscal del cliente" />
+                    </div>
+                  </div>
+                )}
+                <p className="text-[11px] text-slate-500">
+                  Modo: {negocio.modo_comprobante === 'electronico' ? 'e-CF electrónico' : 'NCF tradicional'}. El número se asigna automáticamente al guardar.
+                </p>
               </div>
             )}
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button className="btn-ghost" onClick={agregarManual}>
-                <Plus size={14} /> Concepto manual
-              </button>
-            </div>
-          </div>
 
-          <div>
-            <label className="label">Descuento</label>
-            <div className="flex items-center gap-2">
-              <div className="flex overflow-hidden rounded-lg ring-1 ring-slate-200">
-                <button type="button" disabled={protegerCuenta} onClick={() => setDescuentoModo('monto')} className={`px-3 py-2 text-sm font-semibold transition ${descuentoModo === 'monto' ? 'bg-brand-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>RD$</button>
-                <button type="button" disabled={protegerCuenta} onClick={() => setDescuentoModo('pct')} className={`px-3 py-2 text-sm font-semibold transition ${descuentoModo === 'pct' ? 'bg-brand-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>%</button>
+            {/* Tratamientos realizados por el odontólogo, pendientes de facturar */}
+            {pendientesPlan.length > 0 && (
+              <div className="card space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-emerald-800">Tratamientos pendientes de facturar ({pendientesPlan.length})</span>
+                  <button type="button" className="btn-ghost !py-1 text-xs" onClick={agregarTodosDelPlan}>
+                    <Plus size={14} /> Agregar todos
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  {pendientesPlan.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => agregarDesdePlan(p)}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-emerald-100 bg-emerald-50/40 px-3 py-2 text-left text-sm transition hover:bg-emerald-50"
+                    >
+                      <span className="text-slate-700">
+                        {p.descripcion}
+                        {p.diente != null && <span className="text-slate-400"> · diente {p.diente}</span>}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span className="font-semibold text-slate-700">{money(p.precio_unit)}</span>
+                        <Plus size={14} className="text-emerald-600" />
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-              {descuentoModo === 'monto' ? (
-                <input type="number" min={0} step={50} className={`input w-32 ${protegerCuenta ? 'bg-slate-100 text-slate-500' : ''}`} value={descuento || ''} readOnly={protegerCuenta} onChange={(e) => setDescuento(Number(e.target.value))} />
-              ) : (
-                <>
-                  <input type="number" min={0} max={100} step={1} className={`input w-24 ${protegerCuenta ? 'bg-slate-100 text-slate-500' : ''}`} value={descuentoPct || ''} readOnly={protegerCuenta} onChange={(e) => setDescuentoPct(Math.min(100, Math.max(0, Number(e.target.value))))} />
-                  <span className="text-sm font-medium text-slate-600">= {money(descuentoMonto)}</span>
-                </>
+            )}
+
+            {/* 4. SERVICIOS O ARTÍCULOS */}
+            <div className="card space-y-2">
+              <label className="label">Servicios o artículos</label>
+              <div className="relative">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
+                <input
+                  className="input pl-9"
+                  placeholder="Buscar servicio o artículo…"
+                  value={buscarItem}
+                  onChange={(e) => setBuscarItem(e.target.value)}
+                />
+                {q && (
+                  <div className="absolute z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-pink-100 bg-white shadow-card">
+                    {resultados.length === 0 ? (
+                      <p className="px-3 py-2 text-sm text-slate-600">Sin coincidencias</p>
+                    ) : (
+                      resultados.map((r) => (
+                        <button
+                          key={`${r.tipo}:${r.id}`}
+                          type="button"
+                          onClick={() => agregarDesdeBusqueda(r)}
+                          className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-pink-50"
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className={`badge ${r.tipo === 's' ? 'bg-brand-50 text-brand-700' : 'bg-amber-50 text-amber-700'}`}>
+                              {r.tipo === 's' ? 'Servicio' : 'Artículo'}
+                            </span>
+                            <span className="truncate text-slate-700">{r.nombre}</span>
+                            {r.tipo === 'a' && (
+                              <span className={`text-xs ${(r.stock ?? 0) <= 0 ? 'text-rose-500' : 'text-slate-600'}`}>
+                                {(r.stock ?? 0) <= 0 ? 'Sin existencia' : `Existencia: ${r.stock}`}
+                              </span>
+                            )}
+                          </span>
+                          <span className="shrink-0 font-semibold text-slate-800">{money(r.precio)}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {editId && lineasOriginales > 0 && !puedeModificarLineas && (
+                <p className="text-xs font-medium text-amber-600">Lo ya agregado (🔒) no se puede modificar ni eliminar sin autorización.</p>
               )}
+
+              {lineas.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-4 text-center text-sm text-slate-500">
+                  No hay servicios o artículos agregados.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {lineas.map((l, i) => {
+                    const esManual = !l.servicio_id && !l.articulo_id
+                    const bloqueado = i < lineasOriginales && !puedeModificarLineas
+                    const expandida = lineaExpandida === i
+                    return (
+                      <div key={i} className={`rounded-xl border p-2.5 ${bloqueado ? 'border-slate-100 bg-slate-50' : 'border-slate-200 bg-white'}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            {esManual && !bloqueado ? (
+                              <input
+                                className="input !py-1.5 flex-1"
+                                placeholder="Concepto (ej: ajuste, recargo…)"
+                                value={l.descripcion}
+                                onChange={(e) => setLinea(i, { descripcion: e.target.value })}
+                              />
+                            ) : (
+                              <p className="truncate text-sm font-semibold text-slate-800">{l.descripcion}</p>
+                            )}
+                            <p className="text-xs text-slate-500">{l.cantidad} × {money(l.precio_unit)}</p>
+                          </div>
+                          <span className="shrink-0 font-semibold text-slate-800">{money(l.cantidad * l.precio_unit)}</span>
+                          <div className="flex shrink-0 items-center gap-1">
+                            {bloqueado ? (
+                              <span className="badge bg-slate-200 text-slate-500" title="Ya agregado · requiere autorización">🔒</span>
+                            ) : (
+                              <>
+                                <button type="button" onClick={() => setLineaExpandida(expandida ? null : i)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-brand-600" title="Editar">
+                                  <Pencil size={14} />
+                                </button>
+                                <button type="button" onClick={() => setLineas(lineas.filter((_, idx) => idx !== i))} className="rounded-lg p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600" title="Eliminar">
+                                  <X size={16} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {expandida && !bloqueado && (
+                          <div className="mt-2 space-y-2 border-t border-slate-100 pt-2">
+                            <div>
+                              <span className="text-xs font-medium text-slate-600">Realizado por</span>
+                              <select className="input" value={l.empleado_id} onChange={(e) => setLinea(i, { empleado_id: e.target.value })}>
+                                <option value="">— Sin asignar —</option>
+                                {empleados.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                              </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <span className="text-xs font-medium text-slate-600">Cantidad</span>
+                                <input type="number" min={1} className="input" value={l.cantidad || ''} onChange={(e) => setLinea(i, { cantidad: Number(e.target.value) })} />
+                              </div>
+                              <div>
+                                <span className="text-xs font-medium text-slate-600">Precio</span>
+                                <input type="number" min={0} step={50} className="input" value={l.precio_unit || ''} onChange={(e) => setLinea(i, { precio_unit: Number(e.target.value) })} />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn-ghost" onClick={() => { setBuscarCat(''); setCatTab('catalogo'); setCatalogoOpen(true) }}>
+                  <Plus size={14} /> Agregar servicio
+                </button>
+                <button type="button" className="btn-ghost" onClick={agregarManual}>
+                  <Plus size={14} /> Concepto manual
+                </button>
+              </div>
             </div>
-            <p className="mt-1 text-xs text-slate-600">{protegerCuenta ? '🔒 El descuento no se puede cambiar sin autorización.' : 'El método de pago se elige al cobrar en Caja.'}</p>
+
+            {/* 5. DESCUENTO */}
+            <div className="card space-y-2">
+              <label className="label">Descuento</label>
+              <div className="flex items-center gap-2">
+                <div className="flex overflow-hidden rounded-lg ring-1 ring-slate-200">
+                  <button type="button" disabled={protegerCuenta} onClick={() => setDescuentoModo('monto')} className={`px-3 py-2 text-sm font-semibold transition ${descuentoModo === 'monto' ? 'bg-brand-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>RD$</button>
+                  <button type="button" disabled={protegerCuenta} onClick={() => setDescuentoModo('pct')} className={`px-3 py-2 text-sm font-semibold transition ${descuentoModo === 'pct' ? 'bg-brand-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>%</button>
+                </div>
+                {descuentoModo === 'monto' ? (
+                  <input type="number" min={0} step={50} className={`input w-32 ${protegerCuenta ? 'bg-slate-100 text-slate-500' : ''}`} value={descuento || ''} readOnly={protegerCuenta} onChange={(e) => setDescuento(Number(e.target.value))} />
+                ) : (
+                  <>
+                    <input type="number" min={0} max={100} step={1} className={`input w-24 ${protegerCuenta ? 'bg-slate-100 text-slate-500' : ''}`} value={descuentoPct || ''} readOnly={protegerCuenta} onChange={(e) => setDescuentoPct(Math.min(100, Math.max(0, Number(e.target.value))))} />
+                    <span className="text-sm font-medium text-slate-600">= {money(descuentoMonto)}</span>
+                  </>
+                )}
+              </div>
+              <input className="input" list="motivos-descuento" value={descuentoMotivo} disabled={protegerCuenta} onChange={(e) => setDescuentoMotivo(e.target.value)} placeholder="Seleccionar motivo (opcional)" />
+              <datalist id="motivos-descuento">
+                <option value="Cortesía" /><option value="Paciente frecuente" /><option value="Promoción" /><option value="Ajuste de precio" />
+              </datalist>
+              {protegerCuenta ? (
+                <p className="text-xs text-slate-600">🔒 El descuento no se puede cambiar sin autorización.</p>
+              ) : descuentoExcedeLimite ? (
+                <p className="text-xs font-medium text-rose-600">Este descuento ({descuentoPctEfectivo.toFixed(1)}%) supera el límite de {negocio.descuento_limite_pct}% y requiere autorización.</p>
+              ) : null}
+            </div>
+
+            {/* 6. IMPUESTOS */}
+            <div className="card space-y-1.5">
+              <label className={`flex items-center gap-2 text-sm text-slate-600 ${(!puedeEditarImpuestos || protegerCuenta) ? 'opacity-60' : ''}`}>
+                <input type="checkbox" checked={aplicaItbis} disabled={!puedeEditarImpuestos || protegerCuenta} onChange={(e) => setAplicaItbis(e.target.checked)} />
+                Aplicar ITBIS (18%) {(!puedeEditarImpuestos || protegerCuenta) && <span className="text-xs">🔒</span>}
+              </label>
+              <p className="text-xs text-slate-500">Impuestos calculados según la configuración de los servicios.</p>
+            </div>
+
+            {/* 7. RESUMEN */}
+            <div className="card space-y-1 text-sm">
+              <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>{money(subtotal)}</span></div>
+              {descuentoMonto > 0 && <div className="flex justify-between text-slate-600"><span>Descuento{descuentoModo === 'pct' ? ` (${descuentoPct}%)` : ''}</span><span>- {money(descuentoMonto)}</span></div>}
+              {aplicaItbis && <div className="flex justify-between text-slate-600"><span>ITBIS (18%)</span><span>{money(itbis)}</span></div>}
+              <div className="mt-1 flex items-center justify-between border-t border-slate-200 pt-1.5">
+                <span className="font-bold text-slate-800">TOTAL</span>
+                <span className="text-xl font-extrabold text-brand-700">{money(total)}</span>
+              </div>
+            </div>
+
+            {/* 8. ESTADO DE LA FACTURA + 9. MÉTODO DE PAGO (solo contado nuevo) */}
+            {!editId && tipoVenta === 'CONTADO' && puedeCobrarPendiente && (
+              <div className="card space-y-3">
+                <label className="label">Estado de la factura</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setEstadoPago('pendiente')} className={`rounded-xl border p-3 text-left transition ${estadoPago === 'pendiente' ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                    <FileText size={18} className={estadoPago === 'pendiente' ? 'text-brand-600' : 'text-slate-400'} />
+                    <p className="mt-1 text-sm font-semibold text-slate-800">Guardar pendiente</p>
+                    <p className="text-xs text-slate-500">La factura se guardará pendiente de pago.</p>
+                  </button>
+                  <button type="button" onClick={() => setEstadoPago('cobrar')} className={`rounded-xl border p-3 text-left transition ${estadoPago === 'cobrar' ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                    <DollarSign size={18} className={estadoPago === 'cobrar' ? 'text-brand-600' : 'text-slate-400'} />
+                    <p className="mt-1 text-sm font-semibold text-slate-800">Guardar y cobrar</p>
+                    <p className="text-xs text-slate-500">La factura se guardará como pagada.</p>
+                  </button>
+                </div>
+
+                {estadoPago === 'cobrar' && (
+                  <div className="space-y-3 border-t border-slate-100 pt-3">
+                    <label className="label">Método de pago</label>
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      {METODOS_PAGO.map((m) => {
+                        const Icon = METODO_ICONO[m] ?? MoreHorizontal
+                        return (
+                          <button key={m} type="button" onClick={() => setMetodoCobroNueva(m)} className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-xs font-semibold transition ${metodoCobroNueva === m ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                            <Icon size={18} /> {m}
+                          </button>
+                        )
+                      })}
+                      <button type="button" onClick={() => setMetodoCobroNueva('Mixto')} className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-xs font-semibold transition ${metodoCobroNueva === 'Mixto' ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                        <Layers size={18} /> Pago mixto
+                      </button>
+                    </div>
+
+                    {metodoCobroNueva === 'Efectivo' && (
+                      <div className="space-y-2">
+                        {cajaAbierta ? (
+                          <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 text-sm">
+                            <span className="flex items-center gap-1.5 font-semibold text-emerald-700"><Unlock size={14} /> Caja activa</span>
+                            <span className="text-xs text-emerald-700/80">{conPrefijo(negocio.prefijo_caja, cajaAbierta.numero)} · Abierta por {cajaAbierta.abierta_por}</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                            <p className="flex items-center gap-1.5 font-semibold"><Lock size={14} /> No existe una caja abierta para registrar efectivo.</p>
+                            <div className="flex gap-2">
+                              <Link to="/caja" className="btn-ghost !py-1 text-xs">Abrir caja</Link>
+                              <button type="button" className="btn-ghost !py-1 text-xs" onClick={() => setMetodoCobroNueva('Otro')}>Cambiar método</button>
+                            </div>
+                          </div>
+                        )}
+                        <div className="space-y-1.5 rounded-lg bg-slate-50 p-3 text-sm">
+                          <div className="flex justify-between"><span className="text-slate-500">Total a pagar</span><span className="font-semibold">{money(total)}</span></div>
+                          <div>
+                            <span className="text-xs font-medium text-slate-600">Monto recibido</span>
+                            <input type="number" min={0} step={50} className="input" value={montoRecibido || ''} onChange={(e) => setMontoRecibido(Number(e.target.value))} />
+                          </div>
+                          <div className="flex justify-between font-bold"><span className={cambioEfectivo < 0 ? 'text-rose-600' : 'text-emerald-600'}>Cambio</span><span className={cambioEfectivo < 0 ? 'text-rose-600' : 'text-emerald-600'}>{money(Math.max(0, cambioEfectivo))}</span></div>
+                        </div>
+                      </div>
+                    )}
+
+                    {metodoCobroNueva === 'Tarjeta' && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <input className="input" value={tarjetaTipo} onChange={(e) => setTarjetaTipo(e.target.value)} placeholder="Tipo de tarjeta" />
+                        <input className="input" maxLength={4} value={tarjetaUltimos4} onChange={(e) => setTarjetaUltimos4(e.target.value.replace(/\D/g, ''))} placeholder="Últimos 4 dígitos" />
+                        <input className="input" value={tarjetaAutorizacion} onChange={(e) => setTarjetaAutorizacion(e.target.value)} placeholder="No. de autorización" />
+                        <input className="input" value={tarjetaTerminal} onChange={(e) => setTarjetaTerminal(e.target.value)} placeholder="Terminal (opcional)" />
+                      </div>
+                    )}
+
+                    {metodoCobroNueva === 'Transferencia' && (
+                      <div className="space-y-2">
+                        <input className="input" value={transferenciaBanco} onChange={(e) => setTransferenciaBanco(e.target.value)} placeholder="Banco" />
+                        <input className="input" value={transferenciaReferencia} onChange={(e) => setTransferenciaReferencia(e.target.value)} placeholder="Referencia" />
+                        <input className="input" value={transferenciaComprobante} onChange={(e) => setTransferenciaComprobante(e.target.value)} placeholder="Comprobante (opcional)" />
+                      </div>
+                    )}
+
+                    {metodoCobroNueva === 'Mixto' && (
+                      <div className="space-y-2">
+                        {pagosMixtos.map((p, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <select className="input flex-1" value={p.metodo} onChange={(e) => setPagosMixtos((prev) => prev.map((x, idx) => idx === i ? { ...x, metodo: e.target.value } : x))}>
+                              {METODOS_PAGO.map((m) => <option key={m}>{m}</option>)}
+                            </select>
+                            <input type="number" min={0} step={50} className="input w-28" value={p.monto || ''} onChange={(e) => setPagosMixtos((prev) => prev.map((x, idx) => idx === i ? { ...x, monto: Number(e.target.value) } : x))} />
+                            {pagosMixtos.length > 1 && (
+                              <button type="button" onClick={() => setPagosMixtos((prev) => prev.filter((_, idx) => idx !== i))} className="rounded-lg p-2 text-slate-500 hover:bg-rose-50 hover:text-rose-600"><X size={16} /></button>
+                            )}
+                          </div>
+                        ))}
+                        <button type="button" className="text-xs font-semibold text-brand-600 hover:underline" onClick={() => setPagosMixtos((prev) => [...prev, { metodo: 'Efectivo', monto: 0 }])}>+ Agregar línea</button>
+                        <div className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-bold ${Math.abs(pagosMixtosSuma - total) < 0.01 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          <span>Pagado {money(pagosMixtosSuma)} de {money(total)}</span>
+                          <span>{Math.abs(pagosMixtosSuma - total) < 0.01 ? 'Cuadra ✓' : pagosMixtosSuma < total ? `Falta ${money(total - pagosMixtosSuma)}` : `Sobra ${money(pagosMixtosSuma - total)}`}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 10. NOTAS */}
+            <div className="card space-y-1.5">
+              <label className="label">Notas (opcional)</label>
+              <textarea className="input" rows={notas ? 3 : 2} value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Escribe una nota adicional…" />
+            </div>
           </div>
 
-          <label className={`flex items-center gap-2 text-sm text-slate-600 ${protegerCuenta ? 'opacity-60' : ''}`}>
-            <input type="checkbox" checked={aplicaItbis} disabled={protegerCuenta} onChange={(e) => setAplicaItbis(e.target.checked)} />
-            Aplicar ITBIS (18%) {protegerCuenta && <span className="text-xs">🔒</span>}
-          </label>
-
-          <div className="rounded-lg bg-slate-50 p-3 text-sm">
-            <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>{money(subtotal)}</span></div>
-            {descuentoMonto > 0 && <div className="flex justify-between text-slate-600"><span>Descuento{descuentoModo === 'pct' ? ` (${descuentoPct}%)` : ''}</span><span>- {money(descuentoMonto)}</span></div>}
-            {aplicaItbis && <div className="flex justify-between text-slate-600"><span>ITBIS (18%)</span><span>{money(itbis)}</span></div>}
-            <div className="mt-1 flex justify-between border-t border-slate-200 pt-1 text-base font-bold text-slate-800"><span>Total</span><span>{money(total)}</span></div>
-          </div>
-
-          <div>
-            <label className="label">Notas</label>
-            <textarea className="input" rows={2} value={notas} onChange={(e) => setNotas(e.target.value)} />
-          </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-lg font-bold text-slate-800">Total: {money(total)}</p>
-            <div className="flex flex-wrap gap-2">
-              <button className="btn-ghost" onClick={() => setOpen(false)}>Cancelar</button>
-              <button className="btn-primary" onClick={() => guardar(false)} disabled={saving}>
-                {saving ? 'Guardando…' : 'Guardar factura'}
+          {/* 11. ACCIONES FINALES (barra fija) */}
+          <div className="sticky bottom-0 -mx-4 mt-4 flex gap-2 border-t border-amber-100 bg-white/95 px-4 py-3 backdrop-blur" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+            <button className="btn-ghost" onClick={() => setOpen(false)}>Cancelar</button>
+            {editId ? (
+              <button className="btn-primary flex-1" disabled={lineas.length === 0 || saving} onClick={() => abrirConfirmacion('pendiente')}>
+                Guardar cambios
               </button>
-            </div>
+            ) : (
+              <>
+                <button className="btn-ghost flex-1" disabled={lineas.length === 0} onClick={() => abrirConfirmacion('pendiente')}>
+                  Guardar pendiente
+                </button>
+                {tipoVenta === 'CONTADO' && puedeCobrarPendiente && (
+                  <button className="btn-primary flex-1" disabled={lineas.length === 0} onClick={() => abrirConfirmacion('cobrar')}>
+                    Guardar y cobrar
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
+
+      {/* 12. CONFIRMACIÓN FINAL */}
+      <Modal
+        open={!!confirmando}
+        title="Confirmar factura"
+        onClose={() => setConfirmando(null)}
+        footer={
+          <>
+            <button className="btn-ghost" onClick={() => setConfirmando(null)}>Volver</button>
+            <button className="btn-primary" onClick={guardar} disabled={saving}>{saving ? 'Guardando…' : 'Confirmar factura'}</button>
+          </>
+        }
+      >
+        <div className="space-y-1.5 text-sm">
+          <div className="flex justify-between"><span className="text-slate-500">Cliente</span><span className="font-medium text-slate-800">{clienteSel?.nombre || clienteNombre || 'Cliente de contado'}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Condición</span><span className="font-medium text-slate-800">{tipoVenta === 'CREDITO' ? 'Crédito' : 'Contado'}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Servicios</span><span className="font-medium text-slate-800">{lineas.length}</span></div>
+          <div className="flex justify-between border-t border-slate-100 pt-1.5"><span className="font-semibold text-slate-700">Total</span><span className="font-bold text-slate-900">{money(total)}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Estado</span><span className="font-medium text-slate-800">{confirmando === 'cobrar' ? 'Pagada' : 'Pendiente'}</span></div>
+          {confirmando === 'cobrar' && (
+            <div className="flex justify-between"><span className="text-slate-500">Método de pago</span><span className="font-medium text-slate-800">{metodoCobroNueva === 'Mixto' ? 'Mixto' : metodoCobroNueva}</span></div>
+          )}
+        </div>
+      </Modal>
 
       {/* VENTANA DE LA LUPA: catálogo de servicios/artículos (o historial, según se abra) */}
       <Modal open={catalogoOpen} title={catTab === 'historial' ? (clienteSel ? `Historial de ${clienteSel.nombre}` : 'Historial de facturas') : 'Buscar servicio o artículo'} onClose={() => setCatalogoOpen(false)}>
