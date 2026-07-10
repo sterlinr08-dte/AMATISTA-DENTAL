@@ -76,7 +76,7 @@ export default function Configuracion() {
   const pagProv = usePaginacion(proveedores, 10)
 
   // datos del negocio
-  const [formNeg, setFormNeg] = useState({ nombre: '', direccion: '', referencia: '', telefono: '', whatsapp: '', instagram: '', rnc: '', razon_social: '', comprobantes_activos: false, modo_comprobante: 'tradicional' as 'tradicional' | 'electronico', ecf_proveedor: '', ecf_api_url: '', ecf_api_token: '', ecf_ambiente: 'prueba' as 'prueba' | 'produccion', ecf_emision_auto: false, wa_plantilla: '', ancho_ticket: 58, auto_imprimir: true, ...PREFIJOS_DEFAULT })
+  const [formNeg, setFormNeg] = useState({ nombre: '', direccion: '', referencia: '', telefono: '', whatsapp: '', instagram: '', rnc: '', razon_social: '', comprobantes_activos: false, modo_comprobante: 'tradicional' as 'tradicional' | 'electronico', ecf_proveedor: '', ecf_api_url: '', ecf_api_token: '', ecf_ambiente: 'prueba' as 'prueba' | 'produccion', ecf_emision_auto: false, wa_plantilla: '', ancho_ticket: 58, auto_imprimir: true, descuento_limite_pct: 100, ...PREFIJOS_DEFAULT })
   const [savingNeg, setSavingNeg] = useState(false)
 
   // comprobantes fiscales (secuencias NCF / e-CF)
@@ -140,6 +140,7 @@ export default function Configuracion() {
       wa_plantilla: neg.wa_plantilla ?? '',
       ancho_ticket: Number(neg.ancho_ticket ?? 58),
       auto_imprimir: neg.auto_imprimir ?? true,
+      descuento_limite_pct: Number(neg.descuento_limite_pct ?? 100),
       prefijo_caja: neg.prefijo_caja ?? PREFIJOS_DEFAULT.prefijo_caja,
       prefijo_gasto: neg.prefijo_gasto ?? PREFIJOS_DEFAULT.prefijo_gasto,
       prefijo_pago: neg.prefijo_pago ?? PREFIJOS_DEFAULT.prefijo_pago,
@@ -594,6 +595,20 @@ export default function Configuracion() {
               <input className="input" value={formNeg.referencia} onChange={(e) => setFormNeg({ ...formNeg, referencia: e.target.value })} placeholder="Ej: Frente a Banco Popular" />
             </div>
             <p className="text-xs text-slate-600">Estos datos aparecen en los tickets de cobro, facturas, comprobantes de cierre, el panel y el inicio de sesión. La configuración de impresora está en la pestaña <b>Impresora</b>.</p>
+
+            <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-3">
+              <label className="label">Límite de descuento sin autorización (%)</label>
+              <input
+                type="number" min={0} max={100} step={1}
+                className="input w-32"
+                value={formNeg.descuento_limite_pct}
+                onChange={(e) => setFormNeg({ ...formNeg, descuento_limite_pct: Math.min(100, Math.max(0, Number(e.target.value))) })}
+              />
+              <p className="mt-1 text-xs text-slate-600">
+                En Facturación, un descuento mayor a este porcentaje del subtotal solo lo puede aplicar quien tenga el permiso
+                "Aplicar descuentos superiores al límite configurado".
+              </p>
+            </div>
 
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
               <label className="label">Mensaje de recordatorio de cita (WhatsApp)</label>
