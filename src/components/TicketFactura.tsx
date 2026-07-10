@@ -55,7 +55,7 @@ export default function TicketFactura({ factura, items, negocio, clienteCodigo, 
       {/* ===== ENCABEZADO ===== */}
       <div className="text-center">
         <img src={`${import.meta.env.BASE_URL}${negocio.logo}`} alt="" className="mx-auto mb-1 h-16 object-contain" />
-        <p className="text-[17px] font-extrabold uppercase leading-none tracking-wide text-slate-900">{negocio.nombre}</p>
+        <p className="font-display text-[20px] font-bold leading-tight tracking-normal text-slate-900">{negocio.nombre}</p>
         {negocio.rnc && <p className="mt-1 text-[11px]">RNC: {negocio.rnc}</p>}
         {negocio.direccion && <p className="text-[11px] leading-tight">{negocio.direccion}</p>}
         {negocio.referencia && <p className="text-[11px] leading-tight">{negocio.referencia}</p>}
