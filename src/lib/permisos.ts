@@ -61,6 +61,8 @@ export const ACCIONES: Accion[] = [
   { key: 'facturas.eliminar', label: 'Eliminar facturas', modulo: 'facturacion' },
   { key: 'facturas.vender_sin_existencia', label: 'Facturar artículos sin existencia (dejar en negativo)', modulo: 'facturacion' },
   { key: 'facturas.modificar_lineas', label: 'Modificar o eliminar ítems ya agregados a una cuenta abierta', modulo: 'facturacion' },
+  { key: 'facturas.descuento_sin_limite', label: 'Aplicar descuentos superiores al límite configurado', modulo: 'facturacion' },
+  { key: 'facturas.modificar_impuestos', label: 'Cambiar manualmente si una factura aplica ITBIS', modulo: 'facturacion' },
   { key: 'caja.abrir', label: 'Abrir y cerrar caja', modulo: 'caja' },
   { key: 'caja.movimiento', label: 'Registrar entradas / salidas de efectivo', modulo: 'caja' },
   { key: 'caja.cerrar_descuadre', label: 'Cerrar caja aunque haya descuadre (diferencia)', modulo: 'caja' },
