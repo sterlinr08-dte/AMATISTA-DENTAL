@@ -8,7 +8,7 @@ import { emitirECF, construirUrlQrECF, ECF_ESTADO_LABEL, type EcfResultado, type
 import TicketFactura from '../components/TicketFactura'
 import { Cliente, Factura, FacturaItem, Servicio, Articulo, Empleado, EstadoFactura, TipoVenta } from '../types'
 import { money, fechaCorta, hoyISO, codigoArticulo, codigoFactura, codigoCliente } from '../lib/format'
-import { ITBIS_RATE } from '../lib/constants'
+import { ITBIS_RATE, METODOS_PAGO } from '../lib/constants'
 import { useAuth } from '../lib/auth'
 import { useNegocio } from '../lib/negocio'
 import PageHeader from '../components/PageHeader'
@@ -91,6 +91,9 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   const [clienteNombre, setClienteNombre] = useState('')
   const [fecha, setFecha] = useState(hoyISO())
   const [tipoVenta, setTipoVenta] = useState<TipoVenta>('CONTADO')
+  // Cobrar de una vez al crear (solo ventas de contado nuevas): evita el paso aparte en Caja.
+  const [cobrarAhora, setCobrarAhora] = useState(true)
+  const [metodoCobroNueva, setMetodoCobroNueva] = useState('Efectivo')
   const [aplicaItbis, setAplicaItbis] = useState(false)
   const [descuento, setDescuento] = useState(0)               // descuento como monto (RD$)
   const [descuentoModo, setDescuentoModo] = useState<'monto' | 'pct'>('monto')
@@ -338,6 +341,8 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     setBuscarCliente(fijo ? `${codigoCliente(fijo.codigo)} · ${fijo.nombre}` : '')
     setFecha(hoyISO())
     setTipoVenta('CONTADO')
+    setCobrarAhora(true)
+    setMetodoCobroNueva('Efectivo')
     setAplicaItbis(false)
     setDescuento(0)
     setDescuentoModo('monto')
@@ -372,6 +377,7 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     }
     setFecha(f.fecha)
     setTipoVenta(f.tipo_venta ?? 'CONTADO')
+    setCobrarAhora(false)
     setAplicaItbis(Number(f.itbis) > 0)
     setDescuento(Number(f.descuento))
     setDescuentoModo('monto')
@@ -415,6 +421,17 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
         if (l.cantidad > disponible) {
           return alert(`No hay suficiente existencia de "${l.descripcion}" (disponible: ${disponible}). Solo administración puede facturar dejándolo en negativo.`)
         }
+      }
+    }
+    // Si se va a cobrar de una vez, verificar la caja ANTES de crear nada (para
+    // poder cancelar limpio si el usuario no confirma cobrar sin caja abierta).
+    let cajaIdCobro: string | null = null
+    const cobrarDeUnaVez = !editId && tipoVenta === 'CONTADO' && cobrarAhora
+    if (cobrarDeUnaVez) {
+      const { data: caja } = await supabase.from('caja_sesiones').select('id').eq('estado', 'ABIERTA').order('abierta_at', { ascending: false }).limit(1).maybeSingle()
+      cajaIdCobro = (caja as any)?.id ?? null
+      if (!cajaIdCobro && metodoCobroNueva === 'Efectivo' && !confirm('No hay una caja abierta, así que este cobro en efectivo NO quedará registrado en el arqueo de caja (puede causar descuadre). ¿Continuar de todos modos?')) {
+        return
       }
     }
     setSaving(true)
@@ -551,6 +568,33 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
         ecf_fecha_firma: res.fecha_firma ?? null,
         ecf_mensaje: res.mensaje ?? null,
       }).eq('id', facturaId)
+    }
+
+    // Cobrar de una vez (factura nueva de contado con "Cobrar ahora" marcado).
+    if (cobrarDeUnaVez && facturaId) {
+      const { error: eCobro } = await supabase.from('facturas')
+        .update({ estado: 'PAGADA', metodo_pago: metodoCobroNueva, caja_id: cajaIdCobro })
+        .eq('id', facturaId)
+      if (eCobro) {
+        alert('La factura se creó, pero no se pudo marcar como pagada: ' + eCobro.message + '\n\nPuedes cobrarla luego desde Caja.')
+      } else {
+        await supabase.from('factura_pagos').insert({
+          factura_id: facturaId,
+          metodo: metodoCobroNueva,
+          monto: total,
+          caja_id: cajaIdCobro,
+          registrado_por: perfil?.nombre || perfil?.username || 'Usuario',
+        })
+        if (metodoCobroNueva === 'Efectivo' && cajaIdCobro) {
+          await supabase.from('caja_movimientos').insert({
+            caja_id: cajaIdCobro,
+            tipo: 'ENTRADA',
+            concepto: `Factura ${facturaNueva ? codigoFactura(facturaNueva) : ''} · ${datos.cliente_nombre}`,
+            monto: total,
+            factura_id: facturaId,
+          })
+        }
+      }
     }
 
     setSaving(false)
@@ -1074,6 +1118,38 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
             </div>
             <p className="mt-1 text-xs text-slate-600">Secuencia independiente por tipo: {tipoVenta === 'CREDITO' ? 'CR000001, CR000002… (crédito)' : 'CO000001, CO000002… (contado)'}.</p>
           </div>
+
+          {/* Cobrar de una vez: solo aplica a facturas NUEVAS de contado */}
+          {!editId && tipoVenta === 'CONTADO' && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+              <label className="flex cursor-pointer items-center gap-2.5">
+                <input type="checkbox" checked={cobrarAhora} onChange={(e) => setCobrarAhora(e.target.checked)} className="h-4 w-4 accent-emerald-600" />
+                <span className="text-sm font-semibold text-emerald-800">Cobrar ahora (el paciente ya pagó)</span>
+              </label>
+              {cobrarAhora ? (
+                <>
+                  <p className="mt-1 text-xs text-emerald-700/80">La factura queda <b>PAGADA</b> de una vez, sin pasar por Caja.</p>
+                  <div className="mt-2">
+                    <label className="label">Método de pago</label>
+                    <div className="flex flex-wrap gap-2">
+                      {METODOS_PAGO.map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setMetodoCobroNueva(m)}
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${metodoCobroNueva === m ? 'border-emerald-400 bg-emerald-100 text-emerald-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="mt-1 text-xs text-slate-600">La factura quedará <b>PENDIENTE</b>; se cobra después desde Caja o Cuentas por cobrar.</p>
+              )}
+            </div>
+          )}
 
           {/* Comprobante fiscal DGII (solo si está activo en Configuración) */}
           {negocio.comprobantes_activos && !editId && (
