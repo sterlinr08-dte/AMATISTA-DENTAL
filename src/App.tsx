@@ -42,6 +42,7 @@ import ChatDrawer from './components/chat/ChatDrawer'
 import { BurbujaChat, IconoChatHeader } from './components/chat/BotonChat'
 import { useAuth } from './lib/auth'
 import { useAjustesChat } from './lib/ajustesChat'
+import { usePantallaCompletaAbierta } from './lib/pantallaCompleta'
 import { MODULOS } from './lib/permisos'
 
 function Protegido({ modulo, children }: { modulo: string; children: ReactElement }) {
@@ -62,10 +63,12 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false)
   const location = useLocation()
   const ajustesChat = useAjustesChat()
+  const pantallaCompleta = usePantallaCompletaAbierta()
 
   // El acceso rápido (burbuja + ícono) aparece si el usuario tiene el chat,
-  // y se oculta en la propia página del chat.
-  const accesoChat = puede('chat') && !location.pathname.startsWith('/chat')
+  // se oculta en la propia página del chat, y también mientras una pantalla
+  // (ej. Nueva venta) ocupa toda la vista y no quiere que la burbuja la tape.
+  const accesoChat = puede('chat') && !location.pathname.startsWith('/chat') && !pantallaCompleta
   // Al navegar a otra pantalla, cerrar el panel deslizante.
   useEffect(() => { setChatOpen(false) }, [location.pathname])
 
