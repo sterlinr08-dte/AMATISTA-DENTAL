@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Printer, Ban, X, Search, Receipt, UserPlus, Undo2, Settings } from 'lucide-react'
+import { Plus, Trash2, Printer, Ban, X, Search, Receipt, UserPlus, Undo2, Settings, HandCoins } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
@@ -61,6 +61,7 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   const puedeVenderSinExistencia = puedeAccion('facturas.vender_sin_existencia')
   const puedeModificarLineas = puedeAccion('facturas.modificar_lineas')
   const puedeCambiarFecha = puedeAccion('facturas.cambiar_fecha')
+  const puedeCobrarPendiente = puedeAccion('facturas.cobrar')
 
   const [facturas, setFacturas] = useState<Factura[]>([])
   const [qzListo, setQzListo] = useState(false)   // impresión directa (QZ Tray) conectada
@@ -94,6 +95,10 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
   // Cobrar de una vez al crear (solo ventas de contado nuevas): evita el paso aparte en Caja.
   const [cobrarAhora, setCobrarAhora] = useState(true)
   const [metodoCobroNueva, setMetodoCobroNueva] = useState('Efectivo')
+  // Cobrar una factura de contado que quedó PENDIENTE (sin pasar por Caja).
+  const [cobrarPendiente, setCobrarPendiente] = useState<Factura | null>(null)
+  const [metodoCobroPendiente, setMetodoCobroPendiente] = useState('Efectivo')
+  const [savingCobro, setSavingCobro] = useState(false)
   const [aplicaItbis, setAplicaItbis] = useState(false)
   const [descuento, setDescuento] = useState(0)               // descuento como monto (RD$)
   const [descuentoModo, setDescuentoModo] = useState<'monto' | 'pct'>('monto')
@@ -426,7 +431,7 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     // Si se va a cobrar de una vez, verificar la caja ANTES de crear nada (para
     // poder cancelar limpio si el usuario no confirma cobrar sin caja abierta).
     let cajaIdCobro: string | null = null
-    const cobrarDeUnaVez = !editId && tipoVenta === 'CONTADO' && cobrarAhora
+    const cobrarDeUnaVez = !editId && tipoVenta === 'CONTADO' && cobrarAhora && puedeCobrarPendiente
     if (cobrarDeUnaVez) {
       const { data: caja } = await supabase.from('caja_sesiones').select('id').eq('estado', 'ABIERTA').order('abierta_at', { ascending: false }).limit(1).maybeSingle()
       cajaIdCobro = (caja as any)?.id ?? null
@@ -624,6 +629,51 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
     }
     const { error } = await supabase.from('facturas').update({ estado }).eq('id', f.id)
     if (error) return alert('Error: ' + error.message)
+    cargar()
+  }
+
+  // Cobrar una factura de CONTADO que quedó pendiente (sin ir a Caja).
+  function abrirCobrarPendiente(f: Factura) {
+    setCobrarPendiente(f)
+    setMetodoCobroPendiente('Efectivo')
+  }
+  async function confirmarCobrarPendiente() {
+    if (!cobrarPendiente) return
+    setSavingCobro(true)
+    let cajaId: string | null = null
+    if (metodoCobroPendiente === 'Efectivo') {
+      const { data: caja } = await supabase.from('caja_sesiones').select('id').eq('estado', 'ABIERTA').order('abierta_at', { ascending: false }).limit(1).maybeSingle()
+      cajaId = (caja as any)?.id ?? null
+      if (!cajaId && !confirm('No hay una caja abierta, así que este cobro en efectivo NO quedará registrado en el arqueo de caja (puede causar descuadre). ¿Continuar de todos modos?')) {
+        setSavingCobro(false)
+        return
+      }
+    }
+    const { error } = await supabase.from('facturas')
+      .update({ estado: 'PAGADA', metodo_pago: metodoCobroPendiente, caja_id: cajaId })
+      .eq('id', cobrarPendiente.id)
+    if (error) {
+      setSavingCobro(false)
+      return alert('Error al cobrar: ' + error.message)
+    }
+    await supabase.from('factura_pagos').insert({
+      factura_id: cobrarPendiente.id,
+      metodo: metodoCobroPendiente,
+      monto: cobrarPendiente.total,
+      caja_id: cajaId,
+      registrado_por: perfil?.nombre || perfil?.username || 'Usuario',
+    })
+    if (metodoCobroPendiente === 'Efectivo' && cajaId) {
+      await supabase.from('caja_movimientos').insert({
+        caja_id: cajaId,
+        tipo: 'ENTRADA',
+        concepto: `Factura ${codigoFactura(cobrarPendiente)} · ${cobrarPendiente.cliente_nombre ?? 'Cliente'}`,
+        monto: cobrarPendiente.total,
+        factura_id: cobrarPendiente.id,
+      })
+    }
+    setSavingCobro(false)
+    setCobrarPendiente(null)
     cargar()
   }
 
@@ -987,6 +1037,16 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
             {
               header: '', align: 'right', cell: (f) => (
                 <div className="flex justify-end gap-1">
+                  {f.estado === 'PENDIENTE' && f.tipo_venta !== 'CREDITO' && puedeCobrarPendiente && (
+                    <button title="Cobrar esta factura" onClick={() => abrirCobrarPendiente(f)} className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                      <HandCoins size={13} className="-mt-0.5 mr-0.5 inline" /> Cobrar
+                    </button>
+                  )}
+                  {f.estado === 'PENDIENTE' && f.tipo_venta === 'CREDITO' && (
+                    <Link to="/cuentas" title="Registrar abono en Cuentas por cobrar" className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100">
+                      <HandCoins size={13} className="-mt-0.5 mr-0.5 inline" /> Abonar
+                    </Link>
+                  )}
                   {f.estado === 'PENDIENTE' && puedeEditar && (
                     <button title="Agregar más consumo a esta cuenta" onClick={() => abrirEditar(f)} className="rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100">
                       <Plus size={13} className="-mt-0.5 mr-0.5 inline" /> Agregar consumo
@@ -1017,15 +1077,15 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
       {/* PANTALLA DE VENTA (a página completa, ya no es ventana emergente) */}
       {open && (
         <div className="mx-auto max-w-2xl">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="font-display text-2xl font-bold uppercase text-slate-800">{editId ? 'Editar factura' : 'Nueva venta'}</h2>
-              <p className="text-sm text-slate-600">Registra los servicios y productos a cobrar.</p>
-            </div>
-            <button className="btn-ghost shrink-0" onClick={() => setOpen(false)}>
-              <X size={16} /> Cerrar
-            </button>
-          </div>
+          <PageHeader
+            title={editId ? 'Editar factura' : 'Nueva venta'}
+            subtitle="Registra los servicios y productos a cobrar."
+            action={
+              <button className="btn-ghost shrink-0" onClick={() => setOpen(false)}>
+                <X size={16} /> Cerrar
+              </button>
+            }
+          />
           <div className="card space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -1119,8 +1179,8 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
             <p className="mt-1 text-xs text-slate-600">Secuencia independiente por tipo: {tipoVenta === 'CREDITO' ? 'CR000001, CR000002… (crédito)' : 'CO000001, CO000002… (contado)'}.</p>
           </div>
 
-          {/* Cobrar de una vez: solo aplica a facturas NUEVAS de contado */}
-          {!editId && tipoVenta === 'CONTADO' && (
+          {/* Cobrar de una vez: solo aplica a facturas NUEVAS de contado, y solo si puede cobrar */}
+          {!editId && tipoVenta === 'CONTADO' && puedeCobrarPendiente && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
               <label className="flex cursor-pointer items-center gap-2.5">
                 <input type="checkbox" checked={cobrarAhora} onChange={(e) => setCobrarAhora(e.target.checked)} className="h-4 w-4 accent-emerald-600" />
@@ -1478,6 +1538,41 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
       </Modal>
 
       {/* Modal VER / IMPRIMIR */}
+      {/* Cobrar una factura de contado que quedó pendiente */}
+      <Modal
+        open={!!cobrarPendiente}
+        title={`Cobrar factura ${cobrarPendiente ? codigoFactura(cobrarPendiente) : ''}`}
+        onClose={() => setCobrarPendiente(null)}
+        footer={
+          <>
+            <button className="btn-ghost" onClick={() => setCobrarPendiente(null)}>Cancelar</button>
+            <button className="btn-primary" onClick={confirmarCobrarPendiente} disabled={savingCobro}>
+              {savingCobro ? 'Cobrando…' : `Cobrar ${money(cobrarPendiente?.total ?? 0)}`}
+            </button>
+          </>
+        }
+      >
+        {cobrarPendiente && (
+          <div className="space-y-4">
+            <div className="rounded-xl bg-slate-50 p-3 text-sm">
+              <div className="flex justify-between text-slate-600"><span>Cliente</span><span className="font-medium text-slate-800">{cobrarPendiente.cliente_nombre || 'Cliente'}</span></div>
+              <div className="mt-1 flex justify-between border-t border-slate-200 pt-1 font-bold text-slate-800"><span>Total</span><span>{money(cobrarPendiente.total)}</span></div>
+            </div>
+            <div>
+              <label className="label">Método de pago</label>
+              <div className="grid grid-cols-3 gap-2">
+                {METODOS_PAGO.map((m) => (
+                  <button key={m} type="button" onClick={() => setMetodoCobroPendiente(m)}
+                    className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${metodoCobroPendiente === m ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       <Modal open={!!verId} title={`Factura ${facturaVista ? codigoFactura(facturaVista) : ''}`} onClose={() => setVerId(null)}>
         {facturaVista && (
           <div id="factura-print" className="print-area space-y-3">
