@@ -1522,10 +1522,17 @@ export default function Facturacion({ pacienteFijo }: { pacienteFijo?: string } 
             <div className="card space-y-2">
               <label className="label">Servicios o artículos</label>
               <div className="relative">
-                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
+                <button
+                  type="button"
+                  onClick={() => { setBuscarCat(''); setCatTab('catalogo'); setCatalogoOpen(true) }}
+                  title="Ver catálogo e historial de facturas"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-600 transition hover:bg-brand-50 hover:text-brand-600"
+                >
+                  <Search size={16} />
+                </button>
                 <input
                   className="input pl-9"
-                  placeholder="Buscar servicio o artículo…"
+                  placeholder="Toca la lupa para ver todo, o escribe para buscar…"
                   value={buscarItem}
                   onChange={(e) => setBuscarItem(e.target.value)}
                 />
