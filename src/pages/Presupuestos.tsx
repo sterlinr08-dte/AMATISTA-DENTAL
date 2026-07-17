@@ -66,6 +66,10 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
   const [notas, setNotas] = useState('')
   const [items, setItems] = useState<ItemTmp[]>([])
 
+  // Confirmación antes de enviar por WhatsApp (revisar/corregir el número del paciente)
+  const [whatsappDatos, setWhatsappDatos] = useState<DatosPresupuestoImprimir | null>(null)
+  const [whatsappTelefono, setWhatsappTelefono] = useState('')
+
   async function cargar() {
     setLoading(true)
     let q = supabase.from('presupuestos').select('*').order('codigo', { ascending: false })
@@ -198,15 +202,29 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
     w.focus()
   }
 
-  // Abre WhatsApp con el número del paciente y un mensaje ya escrito (el PDF se
+  // Mensaje que se enviará por WhatsApp (con el número aparte, para poder revisarlo antes).
+  function mensajeWhatsApp(datos: DatosPresupuestoImprimir): string {
+    return `Hola ${datos.cliente?.nombre ?? ''} 👋, te compartimos tu plan de tratamiento ${codigoPresupuesto(datos.codigo)} de ${negocio.nombre}.\n\nTotal: ${money(datos.total)}\n\nTe adjuntamos el PDF con el detalle de los tratamientos. ¡Gracias por confiar en nosotros!`
+  }
+
+  // Abre la ventana de confirmación (revisar/corregir el número) ANTES de abrir WhatsApp.
+  // Es información delicada (paciente, tratamientos, monto): mejor revisar el número
+  // a mano que confiar ciegamente en el teléfono guardado en la ficha.
+  function enviarPorWhatsAppDatos(datos: DatosPresupuestoImprimir) {
+    setWhatsappTelefono(datos.cliente?.telefono ?? '')
+    setWhatsappDatos(datos)
+  }
+
+  // Abre WhatsApp con el número YA confirmado y el mensaje ya escrito (el PDF se
   // adjunta a mano: WhatsApp no permite adjuntar archivos automáticamente desde
   // una app web sin la API de pago de WhatsApp Business).
-  function enviarPorWhatsAppDatos(datos: DatosPresupuestoImprimir) {
-    const tel = (datos.cliente?.telefono || '').replace(/\D/g, '')
-    if (!tel) return alert('Este paciente no tiene teléfono registrado. Agrégalo en Clientes para poder enviarle el plan por WhatsApp.')
+  function confirmarEnvioWhatsApp() {
+    if (!whatsappDatos) return
+    const tel = whatsappTelefono.replace(/\D/g, '')
+    if (!tel) return alert('Escribe el número de WhatsApp del paciente.')
     const numero = tel.length === 10 ? '1' + tel : tel
-    const mensaje = `Hola ${datos.cliente?.nombre ?? ''} 👋, te compartimos tu plan de tratamiento ${codigoPresupuesto(datos.codigo)} de ${negocio.nombre}.\n\nTotal: ${money(datos.total)}\n\nTe adjuntamos el PDF con el detalle de los tratamientos. ¡Gracias por confiar en nosotros!`
-    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, '_blank')
+    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensajeWhatsApp(whatsappDatos))}`, '_blank')
+    setWhatsappDatos(null)
   }
 
   // Datos del presupuesto EN EDICIÓN (formulario abierto), listos para imprimir/enviar.
@@ -734,6 +752,50 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
             </p>
           )}
         </div>
+      </Modal>
+
+      {/* Confirmación antes de enviar por WhatsApp: revisar/corregir el número */}
+      <Modal
+        open={!!whatsappDatos}
+        title="Enviar por WhatsApp"
+        onClose={() => setWhatsappDatos(null)}
+        footer={
+          <>
+            <button className="btn-ghost" onClick={() => setWhatsappDatos(null)}>Cancelar</button>
+            <button className="btn-primary !bg-emerald-600" onClick={confirmarEnvioWhatsApp}>
+              <MessageCircle size={16} /> Abrir WhatsApp
+            </button>
+          </>
+        }
+      >
+        {whatsappDatos && (
+          <div className="space-y-4">
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+              Revisa que el número sea del paciente antes de enviar — esta información incluye su nombre y el monto del tratamiento.
+            </p>
+            <div>
+              <label className="label">Paciente</label>
+              <input className="input bg-slate-50" value={whatsappDatos.cliente?.nombre ?? 'Sin paciente'} readOnly />
+            </div>
+            <div>
+              <label className="label">Número de WhatsApp</label>
+              <input
+                className="input"
+                value={whatsappTelefono}
+                onChange={(e) => setWhatsappTelefono(e.target.value)}
+                placeholder="Ej: 809-555-1234"
+                autoFocus
+              />
+              {!whatsappDatos.cliente?.telefono && (
+                <p className="mt-1 text-xs text-amber-600">Este paciente no tiene teléfono guardado en su ficha. Escríbelo aquí para este envío.</p>
+              )}
+            </div>
+            <div>
+              <label className="label">Mensaje</label>
+              <textarea className="input" rows={5} readOnly value={mensajeWhatsApp(whatsappDatos)} />
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )
