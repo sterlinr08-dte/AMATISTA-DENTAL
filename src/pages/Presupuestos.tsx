@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Save, FileText, Check, Printer, MessageCircle } from 'lucide-react'
+import { Plus, Trash2, Save, FileText, Check, Printer, MessageCircle, Share2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Cliente, Empleado, Servicio, Presupuesto, PresupuestoItem, EstadoPresupuesto } from '../types'
 import { money, fechaCorta, hoyISO } from '../lib/format'
@@ -69,9 +69,14 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
   // Confirmación antes de enviar por WhatsApp (revisar/corregir el número del paciente)
   const [whatsappDatos, setWhatsappDatos] = useState<DatosPresupuestoImprimir | null>(null)
   const [whatsappTelefono, setWhatsappTelefono] = useState('')
-  // Paso 1 (guardar/imprimir el PDF) completado: WhatsApp NO adjunta archivos solo,
-  // hay que abrir el PDF primero y luego adjuntarlo a mano en la conversación.
+  // Paso 1 (guardar/imprimir el PDF) completado: es el respaldo para navegadores
+  // que no pueden compartir el archivo directamente (ver compartirSoportado abajo).
   const [whatsappPdfListo, setWhatsappPdfListo] = useState(false)
+  const [whatsappEnviando, setWhatsappEnviando] = useState(false)
+  // En celular (Chrome Android / Safari iOS) el navegador SÍ puede adjuntar el PDF
+  // solo, a través del menú nativo de "Compartir" del sistema (no del enlace wa.me).
+  // En computadora normalmente no hay esa opción: se usa el flujo manual de 2 pasos.
+  const compartirSoportado = typeof navigator !== 'undefined' && !!navigator.canShare && navigator.canShare({ files: [new File([''], 'x.pdf', { type: 'application/pdf' })] })
 
   async function cargar() {
     setLoading(true)
@@ -205,6 +210,135 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
     w.focus()
   }
 
+  // Genera el PDF del plan de tratamiento como archivo real (no la vista de impresión),
+  // para poder compartirlo directamente con el menú nativo del celular.
+  async function generarPdfBlob(datos: DatosPresupuestoImprimir): Promise<Blob> {
+    const { default: jsPDF } = await import('jspdf')
+    const autoTable = (await import('jspdf-autotable')).default
+    const doc = new jsPDF({ unit: 'mm', format: 'letter' })
+    const izq = 16
+    const der = 195
+    let y = 18
+
+    try {
+      const logoUrl = `${location.origin}${import.meta.env.BASE_URL}${negocio.logo}`
+      const resp = await fetch(logoUrl)
+      const blob = await resp.blob()
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const reader = new FileReader()
+        reader.onload = () => res(reader.result as string)
+        reader.onerror = rej
+        reader.readAsDataURL(blob)
+      })
+      doc.addImage(dataUrl, izq, y - 5, 20, 20, undefined, 'FAST')
+    } catch {
+      // Sin logo, el PDF se genera igual.
+    }
+
+    const textX = izq + 24
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(15)
+    doc.setTextColor(17, 24, 39)
+    doc.text(negocio.nombre, textX, y)
+    y += 5
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(75, 85, 99)
+    if (negocio.rnc) { doc.text(`RNC: ${negocio.rnc}`, textX, y); y += 4 }
+    if (negocio.direccion) { doc.text(`${negocio.direccion}${negocio.referencia ? ' · ' + negocio.referencia : ''}`, textX, y); y += 4 }
+    if (negocio.telefono) { doc.text(`Tel.: ${negocio.telefono}${negocio.whatsapp ? ' · WhatsApp: ' + negocio.whatsapp : ''}`, textX, y); y += 4 }
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    doc.setTextColor(201, 162, 39)
+    doc.text('PLAN DE TRATAMIENTO', der, 18, { align: 'right' })
+    doc.setFontSize(11)
+    doc.setTextColor(55, 65, 81)
+    doc.text(codigoPresupuesto(datos.codigo), der, 24, { align: 'right' })
+
+    y = Math.max(y, 30) + 2
+    doc.setDrawColor(201, 162, 39)
+    doc.setLineWidth(0.8)
+    doc.line(izq, y, der, y)
+    y += 6
+
+    doc.setFontSize(9.5)
+    const meta: [string, string][] = [
+      ['Paciente:', datos.cliente?.nombre ?? 'Sin paciente'],
+      ['Fecha:', fechaCorta(datos.fecha)],
+    ]
+    if (datos.empleado) meta.push(['Odontólogo:', datos.empleado.nombre])
+    meta.push(['Estado:', estadoPresupuestoDef(datos.estado).label])
+    let mx = izq
+    for (const [k, v] of meta) {
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(55, 65, 81)
+      doc.text(k, mx, y)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(31, 41, 55)
+      const kw = doc.getTextWidth(k) + 1.5
+      doc.text(v, mx + kw, y)
+      mx += kw + doc.getTextWidth(v) + 8
+    }
+    y += 6
+
+    const filas = datos.renglones.map((it) => [
+      it.diente ? `${it.descripcion}\nDiente ${it.diente}` : it.descripcion,
+      String(it.cantidad),
+      money(it.precio_unit),
+      money(it.cantidad * it.precio_unit),
+    ])
+    autoTable(doc, {
+      startY: y,
+      head: [['Tratamiento', 'Cant.', 'Precio', 'Subtotal']],
+      body: filas.length ? filas : [['Sin tratamientos', '', '', '']],
+      styles: { font: 'helvetica', fontSize: 9, textColor: [31, 41, 55], cellPadding: 2.2 },
+      headStyles: { fillColor: [250, 243, 223], textColor: [107, 90, 23], fontStyle: 'bold' },
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
+      margin: { left: izq, right: 215.9 - der },
+    })
+
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
+
+    doc.setFontSize(10)
+    doc.setTextColor(75, 85, 99)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Subtotal', der - 55, y)
+    doc.text(money(datos.subtotal), der, y, { align: 'right' })
+    y += 5
+    if (datos.descuento > 0) {
+      doc.text('Descuento', der - 55, y)
+      doc.text('- ' + money(datos.descuento), der, y, { align: 'right' })
+      y += 5
+    }
+    doc.setDrawColor(201, 162, 39)
+    doc.line(der - 55, y - 2, der, y - 2)
+    y += 3
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.setTextColor(17, 24, 39)
+    doc.text('Total', der - 55, y)
+    doc.text(money(datos.total), der, y, { align: 'right' })
+    y += 10
+
+    if (datos.notas) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9.5)
+      doc.setTextColor(75, 85, 99)
+      doc.text('Notas:', izq, y)
+      doc.setFont('helvetica', 'normal')
+      const notasLines = doc.splitTextToSize(datos.notas, der - izq - 16)
+      doc.text(notasLines, izq + 15, y)
+    }
+
+    doc.setFontSize(8.5)
+    doc.setTextColor(107, 114, 128)
+    doc.text('Este plan de tratamiento es una estimación y puede variar según la evolución clínica.', 105.95, 275, { align: 'center' })
+    doc.text(`¡Gracias por confiar en ${negocio.nombre}!`, 105.95, 279, { align: 'center' })
+
+    return doc.output('blob')
+  }
+
   // Mensaje que se enviará por WhatsApp (con el número aparte, para poder revisarlo antes).
   function mensajeWhatsApp(datos: DatosPresupuestoImprimir): string {
     return `Hola ${datos.cliente?.nombre ?? ''} 👋, te compartimos tu plan de tratamiento ${codigoPresupuesto(datos.codigo)} de ${negocio.nombre}.\n\nTotal: ${money(datos.total)}\n\nTe adjuntamos el PDF con el detalle de los tratamientos. ¡Gracias por confiar en nosotros!`
@@ -219,14 +353,37 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
     setWhatsappDatos(datos)
   }
 
-  // Abre WhatsApp con el número YA confirmado y el mensaje ya escrito (el PDF se
-  // adjunta a mano: WhatsApp no permite adjuntar archivos automáticamente desde
-  // una app web sin la API de pago de WhatsApp Business).
-  function confirmarEnvioWhatsApp() {
+  // Envía el presupuesto por WhatsApp con el número YA confirmado.
+  // En celulares compatibles (Chrome Android, Safari iOS) se usa el menú nativo
+  // de "Compartir" del sistema, que SÍ puede adjuntar el PDF automáticamente
+  // (esto no tiene nada que ver con el enlace wa.me, que solo manda texto).
+  // Si no hay soporte (la mayoría de computadoras), se cae al flujo manual de 2 pasos.
+  async function confirmarEnvioWhatsApp() {
     if (!whatsappDatos) return
     const tel = whatsappTelefono.replace(/\D/g, '')
     if (!tel) return alert('Escribe el número de WhatsApp del paciente.')
     const numero = tel.length === 10 ? '1' + tel : tel
+
+    if (compartirSoportado) {
+      setWhatsappEnviando(true)
+      try {
+        const blob = await generarPdfBlob(whatsappDatos)
+        const file = new File([blob], `${codigoPresupuesto(whatsappDatos.codigo)}.pdf`, { type: 'application/pdf' })
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], text: mensajeWhatsApp(whatsappDatos) })
+          setWhatsappEnviando(false)
+          setWhatsappDatos(null)
+          return
+        }
+      } catch (err) {
+        setWhatsappEnviando(false)
+        // El usuario cerró el menú de compartir sin elegir nada: no es un error, solo cancela.
+        if ((err as { name?: string })?.name === 'AbortError') return
+        // Cualquier otro fallo: seguimos con el enlace de WhatsApp como respaldo.
+      }
+      setWhatsappEnviando(false)
+    }
+
     window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensajeWhatsApp(whatsappDatos))}`, '_blank')
     setWhatsappDatos(null)
   }
@@ -766,33 +923,42 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
         footer={
           <>
             <button className="btn-ghost" onClick={() => setWhatsappDatos(null)}>Cancelar</button>
-            <button className="btn-primary !bg-emerald-600" onClick={confirmarEnvioWhatsApp}>
-              <MessageCircle size={16} /> 2. Abrir WhatsApp
+            <button className="btn-primary !bg-emerald-600" onClick={confirmarEnvioWhatsApp} disabled={whatsappEnviando}>
+              {compartirSoportado ? <Share2 size={16} /> : <MessageCircle size={16} />}
+              {whatsappEnviando ? 'Preparando el PDF…' : compartirSoportado ? 'Compartir con el PDF adjunto' : '2. Abrir WhatsApp'}
             </button>
           </>
         }
       >
         {whatsappDatos && (
           <div className="space-y-4">
-            <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
-              WhatsApp no permite que ninguna app adjunte un archivo solo. Por eso son 2 pasos: primero guardas el PDF, luego lo adjuntas tú misma en la conversación (con el clip 📎).
-            </p>
+            {compartirSoportado ? (
+              <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                Tu celular sí puede adjuntar el PDF automáticamente. Al tocar "Compartir con el PDF adjunto" se genera el PDF y se abre el menú de compartir del teléfono: elige <b>WhatsApp</b> ahí y ya sale con el archivo adjunto, lista para enviar.
+              </p>
+            ) : (
+              <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+                Esta computadora no puede adjuntar el archivo sola (solo funciona en celular, con Chrome o Safari). Por eso son 2 pasos: primero guardas el PDF, luego lo adjuntas tú misma en la conversación (con el clip 📎).
+              </p>
+            )}
 
-            <div className="rounded-xl border border-slate-200 p-3">
-              <p className="mb-2 text-sm font-semibold text-slate-800">Paso 1 · Guarda el PDF</p>
-              <button
-                type="button"
-                className="btn-ghost w-full"
-                onClick={() => { imprimirDatosPresupuesto(whatsappDatos); setWhatsappPdfListo(true) }}
-              >
-                <Printer size={16} /> Imprimir / guardar como PDF
-              </button>
-              {whatsappPdfListo && (
-                <p className="mt-2 flex items-center gap-1 text-xs font-medium text-emerald-600">
-                  <Check size={13} strokeWidth={3} /> Listo, ya se abrió el PDF. Guárdalo (o imprímelo) desde ahí.
-                </p>
-              )}
-            </div>
+            {!compartirSoportado && (
+              <div className="rounded-xl border border-slate-200 p-3">
+                <p className="mb-2 text-sm font-semibold text-slate-800">Paso 1 · Guarda el PDF</p>
+                <button
+                  type="button"
+                  className="btn-ghost w-full"
+                  onClick={() => { imprimirDatosPresupuesto(whatsappDatos); setWhatsappPdfListo(true) }}
+                >
+                  <Printer size={16} /> Imprimir / guardar como PDF
+                </button>
+                {whatsappPdfListo && (
+                  <p className="mt-2 flex items-center gap-1 text-xs font-medium text-emerald-600">
+                    <Check size={13} strokeWidth={3} /> Listo, ya se abrió el PDF. Guárdalo (o imprímelo) desde ahí.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="label">Paciente</label>
@@ -809,18 +975,23 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
               {!whatsappDatos.cliente?.telefono && (
                 <p className="mt-1 text-xs text-amber-600">Este paciente no tiene teléfono guardado en su ficha. Escríbelo aquí para este envío.</p>
               )}
+              {compartirSoportado && (
+                <p className="mt-1 text-xs text-slate-500">Este número es solo de referencia (para que revises que es el paciente correcto): en el menú de compartir tú eliges el chat de WhatsApp correspondiente.</p>
+              )}
             </div>
             <div>
               <label className="label">Mensaje</label>
               <textarea className="input" rows={5} readOnly value={mensajeWhatsApp(whatsappDatos)} />
             </div>
 
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
-              <p className="text-sm font-semibold text-slate-800">Paso 2 · Abre WhatsApp y adjunta el PDF</p>
-              <p className="mt-1 text-xs text-slate-600">
-                Al tocar "2. Abrir WhatsApp" se abre la conversación con el mensaje ya escrito. Ahí toca el <b>clip 📎</b> (o el ícono de adjuntar documento) y elige el PDF que guardaste en el Paso 1.
-              </p>
-            </div>
+            {!compartirSoportado && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+                <p className="text-sm font-semibold text-slate-800">Paso 2 · Abre WhatsApp y adjunta el PDF</p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Al tocar "2. Abrir WhatsApp" se abre la conversación con el mensaje ya escrito. Ahí toca el <b>clip 📎</b> (o el ícono de adjuntar documento) y elige el PDF que guardaste en el Paso 1.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </Modal>
