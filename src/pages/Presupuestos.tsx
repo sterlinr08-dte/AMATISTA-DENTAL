@@ -69,6 +69,9 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
   // Confirmación antes de enviar por WhatsApp (revisar/corregir el número del paciente)
   const [whatsappDatos, setWhatsappDatos] = useState<DatosPresupuestoImprimir | null>(null)
   const [whatsappTelefono, setWhatsappTelefono] = useState('')
+  // Paso 1 (guardar/imprimir el PDF) completado: WhatsApp NO adjunta archivos solo,
+  // hay que abrir el PDF primero y luego adjuntarlo a mano en la conversación.
+  const [whatsappPdfListo, setWhatsappPdfListo] = useState(false)
 
   async function cargar() {
     setLoading(true)
@@ -212,6 +215,7 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
   // a mano que confiar ciegamente en el teléfono guardado en la ficha.
   function enviarPorWhatsAppDatos(datos: DatosPresupuestoImprimir) {
     setWhatsappTelefono(datos.cliente?.telefono ?? '')
+    setWhatsappPdfListo(false)
     setWhatsappDatos(datos)
   }
 
@@ -754,7 +758,7 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
         </div>
       </Modal>
 
-      {/* Confirmación antes de enviar por WhatsApp: revisar/corregir el número */}
+      {/* Confirmación antes de enviar por WhatsApp: revisar número + guiar el adjunto del PDF */}
       <Modal
         open={!!whatsappDatos}
         title="Enviar por WhatsApp"
@@ -763,16 +767,33 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
           <>
             <button className="btn-ghost" onClick={() => setWhatsappDatos(null)}>Cancelar</button>
             <button className="btn-primary !bg-emerald-600" onClick={confirmarEnvioWhatsApp}>
-              <MessageCircle size={16} /> Abrir WhatsApp
+              <MessageCircle size={16} /> 2. Abrir WhatsApp
             </button>
           </>
         }
       >
         {whatsappDatos && (
           <div className="space-y-4">
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-              Revisa que el número sea del paciente antes de enviar — esta información incluye su nombre y el monto del tratamiento.
+            <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+              WhatsApp no permite que ninguna app adjunte un archivo solo. Por eso son 2 pasos: primero guardas el PDF, luego lo adjuntas tú misma en la conversación (con el clip 📎).
             </p>
+
+            <div className="rounded-xl border border-slate-200 p-3">
+              <p className="mb-2 text-sm font-semibold text-slate-800">Paso 1 · Guarda el PDF</p>
+              <button
+                type="button"
+                className="btn-ghost w-full"
+                onClick={() => { imprimirDatosPresupuesto(whatsappDatos); setWhatsappPdfListo(true) }}
+              >
+                <Printer size={16} /> Imprimir / guardar como PDF
+              </button>
+              {whatsappPdfListo && (
+                <p className="mt-2 flex items-center gap-1 text-xs font-medium text-emerald-600">
+                  <Check size={13} strokeWidth={3} /> Listo, ya se abrió el PDF. Guárdalo (o imprímelo) desde ahí.
+                </p>
+              )}
+            </div>
+
             <div>
               <label className="label">Paciente</label>
               <input className="input bg-slate-50" value={whatsappDatos.cliente?.nombre ?? 'Sin paciente'} readOnly />
@@ -784,7 +805,6 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
                 value={whatsappTelefono}
                 onChange={(e) => setWhatsappTelefono(e.target.value)}
                 placeholder="Ej: 809-555-1234"
-                autoFocus
               />
               {!whatsappDatos.cliente?.telefono && (
                 <p className="mt-1 text-xs text-amber-600">Este paciente no tiene teléfono guardado en su ficha. Escríbelo aquí para este envío.</p>
@@ -793,6 +813,13 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
             <div>
               <label className="label">Mensaje</label>
               <textarea className="input" rows={5} readOnly value={mensajeWhatsApp(whatsappDatos)} />
+            </div>
+
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+              <p className="text-sm font-semibold text-slate-800">Paso 2 · Abre WhatsApp y adjunta el PDF</p>
+              <p className="mt-1 text-xs text-slate-600">
+                Al tocar "2. Abrir WhatsApp" se abre la conversación con el mensaje ya escrito. Ahí toca el <b>clip 📎</b> (o el ícono de adjuntar documento) y elige el PDF que guardaste en el Paso 1.
+              </p>
             </div>
           </div>
         )}
