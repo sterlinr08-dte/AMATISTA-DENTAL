@@ -1,15 +1,30 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Save, FileText, Check } from 'lucide-react'
+import { Plus, Trash2, Save, FileText, Check, Printer, MessageCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Cliente, Empleado, Servicio, Presupuesto, PresupuestoItem, EstadoPresupuesto } from '../types'
 import { money, fechaCorta, hoyISO } from '../lib/format'
 import { ESTADOS_PRESUPUESTO, estadoPresupuestoDef } from '../lib/dental'
+import { useNegocio } from '../lib/negocio'
 import PageHeader from '../components/PageHeader'
 import Cargando from '../components/Cargando'
 import Modal from '../components/Modal'
 import DataTable from '../components/DataTable'
 import type { Columna } from '../components/DataTable'
 import SelectorPaciente from '../components/SelectorPaciente'
+
+// Datos ya resueltos (cliente, odontólogo, renglones) para imprimir o enviar un presupuesto.
+interface DatosPresupuestoImprimir {
+  codigo: number | null
+  fecha: string
+  estado: EstadoPresupuesto
+  cliente: Cliente | null
+  empleado: Empleado | null
+  renglones: { descripcion: string; diente: string; cantidad: number; precio_unit: number }[]
+  subtotal: number
+  descuento: number
+  total: number
+  notas: string
+}
 
 // Renglón temporal del presupuesto (en edición, antes de guardar)
 interface ItemTmp {
@@ -28,6 +43,7 @@ function codigoPresupuesto(codigo: number | null | undefined): string {
 }
 
 export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string } = {}) {
+  const { negocio } = useNegocio()
   const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [empleados, setEmpleados] = useState<Empleado[]>([])
@@ -39,6 +55,7 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
 
   // formulario del presupuesto
   const [editId, setEditId] = useState<string | null>(null)
+  const [editCodigo, setEditCodigo] = useState<number | null>(null)
   const [editEstado, setEditEstado] = useState<EstadoPresupuesto>('BORRADOR')
   const [editFacturaId, setEditFacturaId] = useState<string | null>(null)
   const [clienteId, setClienteId] = useState('')
@@ -81,8 +98,170 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
     return clientes.find((c) => c.id === id)?.nombre ?? 'Paciente'
   }
 
+  // Abre una ventana con el plan de tratamiento en formato imprimible (hoja carta).
+  // Desde el diálogo de impresión del navegador se puede elegir "Guardar como PDF".
+  function imprimirDatosPresupuesto(datos: DatosPresupuestoImprimir) {
+    const w = window.open('', '_blank', 'width=850,height=1100')
+    if (!w) return alert('Permite las ventanas emergentes para imprimir.')
+    const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    const filas = datos.renglones
+      .map(
+        (it) => `<tr>
+          <td>${esc(it.descripcion)}${it.diente ? `<div class="por">Diente ${esc(it.diente)}</div>` : ''}</td>
+          <td class="c">${it.cantidad}</td>
+          <td class="r">${money(it.precio_unit)}</td>
+          <td class="r">${money(it.cantidad * it.precio_unit)}</td>
+        </tr>`,
+      )
+      .join('')
+    const logoSrc = `${location.origin}${import.meta.env.BASE_URL}${negocio.logo}`
+    w.document.write(`<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>${esc(codigoPresupuesto(datos.codigo))} — Plan de tratamiento</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color:#1f2937; margin:0; padding:40px 48px; font-size:13px; }
+  .enc { display:flex; align-items:center; gap:18px; border-bottom:3px solid #c9a227; padding-bottom:16px; margin-bottom:18px; }
+  .enc img { height:74px; width:auto; object-fit:contain; }
+  .clinica { font-size:22px; font-weight:bold; color:#111827; margin:0; }
+  .datos { font-size:11px; color:#4b5563; margin-top:3px; line-height:1.4; }
+  .tit { text-align:right; margin-left:auto; }
+  .tit .lbl { font-size:18px; font-weight:bold; color:#c9a227; letter-spacing:1px; }
+  .tit .num { font-size:14px; font-weight:bold; color:#374151; }
+  .meta { display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px 24px; margin-bottom:14px; }
+  .meta div { font-size:12.5px; }
+  .meta .k { font-weight:bold; color:#374151; }
+  table { width:100%; border-collapse:collapse; margin-top:6px; }
+  thead th { background:#faf3df; border-bottom:2px solid #c9a227; text-align:left; padding:8px 10px; font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:#6b5a17; }
+  thead th.c { text-align:center; } thead th.r { text-align:right; }
+  tbody td { border-bottom:1px solid #eee; padding:8px 10px; vertical-align:top; }
+  tbody td.c { text-align:center; } tbody td.r { text-align:right; white-space:nowrap; }
+  .por { font-size:11px; color:#6b7280; margin-top:2px; }
+  .tot { margin-top:14px; margin-left:auto; width:280px; }
+  .tot .fila { display:flex; justify-content:space-between; padding:3px 0; font-size:13px; color:#4b5563; }
+  .tot .total { border-top:2px solid #c9a227; margin-top:4px; padding-top:6px; font-size:16px; font-weight:bold; color:#111827; }
+  .notas { margin-top:20px; font-size:12px; color:#4b5563; }
+  .pie { margin-top:40px; border-top:1px solid #e5e7eb; padding-top:12px; text-align:center; font-size:11px; color:#6b7280; }
+  @page { size: letter; margin: 16mm; }
+</style></head><body>
+  <div class="enc">
+    <img src="${logoSrc}" alt="${esc(negocio.nombre)}">
+    <div>
+      <p class="clinica">${esc(negocio.nombre)}</p>
+      <div class="datos">
+        ${negocio.rnc ? `<div>RNC: ${esc(negocio.rnc)}</div>` : ''}
+        ${negocio.direccion ? `<div>${esc(negocio.direccion)}${negocio.referencia ? ' · ' + esc(negocio.referencia) : ''}</div>` : ''}
+        ${negocio.telefono ? `<div>Tel.: ${esc(negocio.telefono)}${negocio.whatsapp ? ' · WhatsApp: ' + esc(negocio.whatsapp) : ''}</div>` : ''}
+      </div>
+    </div>
+    <div class="tit">
+      <div class="lbl">PLAN DE TRATAMIENTO</div>
+      <div class="num">${esc(codigoPresupuesto(datos.codigo))}</div>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div><span class="k">Paciente:</span> ${esc(datos.cliente?.nombre ?? 'Sin paciente')}</div>
+    <div><span class="k">Fecha:</span> ${esc(fechaCorta(datos.fecha))}</div>
+    ${datos.empleado ? `<div><span class="k">Odontólogo:</span> ${esc(datos.empleado.nombre)}</div>` : ''}
+    <div><span class="k">Estado:</span> ${esc(estadoPresupuestoDef(datos.estado).label)}</div>
+  </div>
+
+  <table>
+    <thead><tr>
+      <th>Tratamiento</th><th class="c">Cant.</th><th class="r">Precio</th><th class="r">Subtotal</th>
+    </tr></thead>
+    <tbody>${filas || '<tr><td colspan="4" style="text-align:center;color:#9ca3af;padding:16px;">Sin tratamientos</td></tr>'}</tbody>
+  </table>
+
+  <div class="tot">
+    <div class="fila"><span>Subtotal</span><span>${money(datos.subtotal)}</span></div>
+    ${datos.descuento > 0 ? `<div class="fila"><span>Descuento</span><span>- ${money(datos.descuento)}</span></div>` : ''}
+    <div class="fila total"><span>Total</span><span>${money(datos.total)}</span></div>
+  </div>
+
+  ${datos.notas ? `<div class="notas"><b>Notas:</b> ${esc(datos.notas)}</div>` : ''}
+
+  <div class="pie">
+    <p>Este plan de tratamiento es una estimación y puede variar según la evolución clínica.</p>
+    <p>¡Gracias por confiar en ${esc(negocio.nombre)}!</p>
+  </div>
+  <script>
+    window.onload = function () {
+      var imgs = Array.prototype.slice.call(document.images)
+      Promise.all(imgs.map(function (img) {
+        return img.complete ? Promise.resolve() : new Promise(function (res) { img.onload = img.onerror = res })
+      })).then(function () { setTimeout(function () { window.focus(); window.print() }, 150) })
+    }
+  </script>
+</body></html>`)
+    w.document.close()
+    w.focus()
+  }
+
+  // Abre WhatsApp con el número del paciente y un mensaje ya escrito (el PDF se
+  // adjunta a mano: WhatsApp no permite adjuntar archivos automáticamente desde
+  // una app web sin la API de pago de WhatsApp Business).
+  function enviarPorWhatsAppDatos(datos: DatosPresupuestoImprimir) {
+    const tel = (datos.cliente?.telefono || '').replace(/\D/g, '')
+    if (!tel) return alert('Este paciente no tiene teléfono registrado. Agrégalo en Clientes para poder enviarle el plan por WhatsApp.')
+    const numero = tel.length === 10 ? '1' + tel : tel
+    const mensaje = `Hola ${datos.cliente?.nombre ?? ''} 👋, te compartimos tu plan de tratamiento ${codigoPresupuesto(datos.codigo)} de ${negocio.nombre}.\n\nTotal: ${money(datos.total)}\n\nTe adjuntamos el PDF con el detalle de los tratamientos. ¡Gracias por confiar en nosotros!`
+    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, '_blank')
+  }
+
+  // Datos del presupuesto EN EDICIÓN (formulario abierto), listos para imprimir/enviar.
+  function datosDelFormulario(): DatosPresupuestoImprimir {
+    return {
+      codigo: editCodigo,
+      fecha,
+      estado,
+      cliente: clientes.find((c) => c.id === clienteId) ?? null,
+      empleado: empleados.find((e) => e.id === empleadoId) ?? null,
+      renglones: itemsValidos().map((l) => ({ descripcion: l.descripcion, diente: l.diente, cantidad: l.cantidad, precio_unit: l.precio_unit })),
+      subtotal,
+      descuento: descuentoMonto,
+      total,
+      notas,
+    }
+  }
+
+  // Imprimir/enviar un presupuesto de la LISTA (sin abrir el formulario): trae sus renglones primero.
+  async function imprimirDesdeLista(p: Presupuesto) {
+    const { data, error } = await supabase.from('presupuesto_items').select('*').eq('presupuesto_id', p.id).order('id')
+    if (error) return alert('Error al cargar los tratamientos: ' + error.message)
+    imprimirDatosPresupuesto({
+      codigo: p.codigo,
+      fecha: p.fecha,
+      estado: p.estado,
+      cliente: clientes.find((c) => c.id === p.cliente_id) ?? null,
+      empleado: empleados.find((e) => e.id === p.empleado_id) ?? null,
+      renglones: ((data as PresupuestoItem[]) ?? []).map((it) => ({ descripcion: it.descripcion, diente: it.diente == null ? '' : String(it.diente), cantidad: Number(it.cantidad), precio_unit: Number(it.precio_unit) })),
+      subtotal: Number(p.subtotal),
+      descuento: Number(p.descuento),
+      total: Number(p.total),
+      notas: p.notas ?? '',
+    })
+  }
+
+  async function enviarPorWhatsAppDesdeLista(p: Presupuesto) {
+    const cliente = clientes.find((c) => c.id === p.cliente_id) ?? null
+    enviarPorWhatsAppDatos({
+      codigo: p.codigo,
+      fecha: p.fecha,
+      estado: p.estado,
+      cliente,
+      empleado: empleados.find((e) => e.id === p.empleado_id) ?? null,
+      renglones: [],
+      subtotal: Number(p.subtotal),
+      descuento: Number(p.descuento),
+      total: Number(p.total),
+      notas: p.notas ?? '',
+    })
+  }
+
   function nuevo() {
     setEditId(null)
+    setEditCodigo(null)
     setEditEstado('BORRADOR')
     setEditFacturaId(null)
     setClienteId(pacienteFijo ?? '')
@@ -103,6 +282,7 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
       .order('id')
     if (error) return alert('Error al cargar el presupuesto: ' + error.message)
     setEditId(p.id)
+    setEditCodigo(p.codigo)
     setEditEstado(p.estado)
     setEditFacturaId(p.factura_id)
     setClienteId(p.cliente_id ?? '')
@@ -323,6 +503,18 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
     { header: 'Fecha', cell: (p) => <span className="text-slate-600">{fechaCorta(p.fecha)}</span>, sortValue: (p) => p.fecha },
     { header: 'Estado', cell: (p) => <span className={`badge ${estadoPresupuestoDef(p.estado).color}`}>{estadoPresupuestoDef(p.estado).label}</span>, sortValue: (p) => p.estado },
     { header: 'Total', align: 'right', cell: (p) => <span className="font-semibold text-slate-800">{money(p.total)}</span>, sortValue: (p) => p.total },
+    {
+      header: '', align: 'right', cell: (p) => (
+        <div className="flex justify-end gap-1">
+          <button title="Imprimir / Guardar como PDF" onClick={(e) => { e.stopPropagation(); imprimirDesdeLista(p) }} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-brand-600">
+            <Printer size={16} />
+          </button>
+          <button title="Enviar por WhatsApp" onClick={(e) => { e.stopPropagation(); enviarPorWhatsAppDesdeLista(p) }} className="rounded-lg p-2 text-slate-600 hover:bg-emerald-50 hover:text-emerald-600">
+            <MessageCircle size={16} />
+          </button>
+        </div>
+      ),
+    },
   ]
 
   const facturado = editEstado === 'FACTURADO' || !!editFacturaId
@@ -370,6 +562,16 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
         onClose={() => setOpen(false)}
         footer={
           <>
+            {editId && (
+              <>
+                <button className="btn-ghost" onClick={() => imprimirDatosPresupuesto(datosDelFormulario())} title="Imprimir o guardar como PDF">
+                  <Printer size={16} /> Imprimir / PDF
+                </button>
+                <button className="btn-ghost !text-emerald-700" onClick={() => enviarPorWhatsAppDatos(datosDelFormulario())} title="Enviar por WhatsApp">
+                  <MessageCircle size={16} /> WhatsApp
+                </button>
+              </>
+            )}
             <button className="btn-ghost" onClick={() => setOpen(false)}>Cancelar</button>
             <button className="btn-primary" onClick={guardar} disabled={saving}>
               <Save size={16} /> {saving ? 'Guardando…' : 'Guardar'}
