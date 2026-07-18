@@ -73,6 +73,9 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
   // que no pueden compartir el archivo directamente (ver compartirSoportado abajo).
   const [whatsappPdfListo, setWhatsappPdfListo] = useState(false)
   const [whatsappEnviando, setWhatsappEnviando] = useState(false)
+  // Formato a compartir cuando hay soporte nativo: imagen (se ve directo en el chat)
+  // o PDF (mejor para imprimir). Se puede probar y cambiar antes de compartir.
+  const [whatsappFormato, setWhatsappFormato] = useState<'imagen' | 'pdf'>('imagen')
   // En celular (Chrome Android / Safari iOS) el navegador SÍ puede adjuntar el PDF
   // solo, a través del menú nativo de "Compartir" del sistema (no del enlace wa.me).
   // En computadora normalmente no hay esa opción: se usa el flujo manual de 2 pasos.
@@ -110,11 +113,9 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
     return clientes.find((c) => c.id === id)?.nombre ?? 'Paciente'
   }
 
-  // Abre una ventana con el plan de tratamiento en formato imprimible (hoja carta).
-  // Desde el diálogo de impresión del navegador se puede elegir "Guardar como PDF".
-  function imprimirDatosPresupuesto(datos: DatosPresupuestoImprimir) {
-    const w = window.open('', '_blank', 'width=850,height=1100')
-    if (!w) return alert('Permite las ventanas emergentes para imprimir.')
+  // HTML completo del plan de tratamiento en formato imprimible (hoja carta).
+  // Se reutiliza tanto para la ventana de impresión como para la imagen (html2canvas).
+  function htmlPresupuesto(datos: DatosPresupuestoImprimir, autoImprimir: boolean): string {
     const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     const filas = datos.renglones
       .map(
@@ -127,11 +128,11 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
       )
       .join('')
     const logoSrc = `${location.origin}${import.meta.env.BASE_URL}${negocio.logo}`
-    w.document.write(`<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><title>${esc(codigoPresupuesto(datos.codigo))} — Plan de tratamiento</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; color:#1f2937; margin:0; padding:40px 48px; font-size:13px; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color:#1f2937; margin:0; padding:40px 48px; font-size:13px; background:#fff; }
   .enc { display:flex; align-items:center; gap:18px; border-bottom:3px solid #c9a227; padding-bottom:16px; margin-bottom:18px; }
   .enc img { height:74px; width:auto; object-fit:contain; }
   .clinica { font-size:22px; font-weight:bold; color:#111827; margin:0; }
@@ -197,17 +198,56 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
     <p>Este plan de tratamiento es una estimación y puede variar según la evolución clínica.</p>
     <p>¡Gracias por confiar en ${esc(negocio.nombre)}!</p>
   </div>
-  <script>
+  ${autoImprimir ? `<script>
     window.onload = function () {
       var imgs = Array.prototype.slice.call(document.images)
       Promise.all(imgs.map(function (img) {
         return img.complete ? Promise.resolve() : new Promise(function (res) { img.onload = img.onerror = res })
       })).then(function () { setTimeout(function () { window.focus(); window.print() }, 150) })
     }
-  </script>
-</body></html>`)
+  </script>` : ''}
+</body></html>`
+  }
+
+  // Abre una ventana con el plan de tratamiento en formato imprimible (hoja carta).
+  // Desde el diálogo de impresión del navegador se puede elegir "Guardar como PDF".
+  function imprimirDatosPresupuesto(datos: DatosPresupuestoImprimir) {
+    const w = window.open('', '_blank', 'width=850,height=1100')
+    if (!w) return alert('Permite las ventanas emergentes para imprimir.')
+    w.document.write(htmlPresupuesto(datos, true))
     w.document.close()
     w.focus()
+  }
+
+  // Genera una imagen (PNG) del plan de tratamiento, renderizando el mismo HTML
+  // en un iframe oculto y capturándolo con html2canvas. En WhatsApp una imagen
+  // se ve directo en el chat (sin tener que tocarla), a diferencia del PDF.
+  async function generarImagenBlob(datos: DatosPresupuestoImprimir): Promise<Blob> {
+    const html2canvas = (await import('html2canvas')).default
+    const iframe = document.createElement('iframe')
+    iframe.style.cssText = 'position:fixed; left:-10000px; top:0; width:850px; height:1200px; border:0;'
+    document.body.appendChild(iframe)
+    try {
+      const doc = iframe.contentDocument
+      if (!doc) throw new Error('No se pudo preparar la vista para la imagen.')
+      doc.open()
+      doc.write(htmlPresupuesto(datos, false))
+      doc.close()
+      await new Promise<void>((resolve) => {
+        const imgs = Array.from(doc.images)
+        if (imgs.length === 0) return resolve()
+        let pendientes = imgs.length
+        const listo = () => { if (--pendientes <= 0) resolve() }
+        imgs.forEach((img) => (img.complete ? listo() : ((img.onload = listo), (img.onerror = listo))))
+      })
+      await new Promise((r) => setTimeout(r, 60))
+      const canvas = await html2canvas(doc.body, { scale: 2, backgroundColor: '#ffffff', useCORS: true })
+      return await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('No se pudo crear la imagen.'))), 'image/png')
+      })
+    } finally {
+      document.body.removeChild(iframe)
+    }
   }
 
   // Genera el PDF del plan de tratamiento como archivo real (no la vista de impresión),
@@ -353,22 +393,24 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
     setWhatsappDatos(datos)
   }
 
-  // Envía el presupuesto por WhatsApp con el número YA confirmado.
+  // Envía el presupuesto por WhatsApp.
   // En celulares compatibles (Chrome Android, Safari iOS) se usa el menú nativo
-  // de "Compartir" del sistema, que SÍ puede adjuntar el PDF automáticamente
-  // (esto no tiene nada que ver con el enlace wa.me, que solo manda texto).
-  // Si no hay soporte (la mayoría de computadoras), se cae al flujo manual de 2 pasos.
+  // de "Compartir" del sistema, que SÍ puede adjuntar el PDF automáticamente:
+  // ahí ella misma elige el chat de WhatsApp, así que no hace falta pedir el
+  // número de antemano (esto no tiene nada que ver con el enlace wa.me, que
+  // solo manda texto y sí necesita el número). Si el navegador no tiene ese
+  // soporte (la mayoría de computadoras), se cae al flujo manual de 2 pasos,
+  // que sí usa el número para armar el enlace de wa.me.
   async function confirmarEnvioWhatsApp() {
     if (!whatsappDatos) return
-    const tel = whatsappTelefono.replace(/\D/g, '')
-    if (!tel) return alert('Escribe el número de WhatsApp del paciente.')
-    const numero = tel.length === 10 ? '1' + tel : tel
 
     if (compartirSoportado) {
       setWhatsappEnviando(true)
       try {
-        const blob = await generarPdfBlob(whatsappDatos)
-        const file = new File([blob], `${codigoPresupuesto(whatsappDatos.codigo)}.pdf`, { type: 'application/pdf' })
+        const esImagen = whatsappFormato === 'imagen'
+        const blob = esImagen ? await generarImagenBlob(whatsappDatos) : await generarPdfBlob(whatsappDatos)
+        const nombre = `${codigoPresupuesto(whatsappDatos.codigo)}.${esImagen ? 'png' : 'pdf'}`
+        const file = new File([blob], nombre, { type: esImagen ? 'image/png' : 'application/pdf' })
         if (navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file], text: mensajeWhatsApp(whatsappDatos) })
           setWhatsappEnviando(false)
@@ -384,6 +426,9 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
       setWhatsappEnviando(false)
     }
 
+    const tel = whatsappTelefono.replace(/\D/g, '')
+    if (!tel) return alert('Escribe el número de WhatsApp del paciente.')
+    const numero = tel.length === 10 ? '1' + tel : tel
     window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensajeWhatsApp(whatsappDatos))}`, '_blank')
     setWhatsappDatos(null)
   }
@@ -925,7 +970,11 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
             <button className="btn-ghost" onClick={() => setWhatsappDatos(null)}>Cancelar</button>
             <button className="btn-primary !bg-emerald-600" onClick={confirmarEnvioWhatsApp} disabled={whatsappEnviando}>
               {compartirSoportado ? <Share2 size={16} /> : <MessageCircle size={16} />}
-              {whatsappEnviando ? 'Preparando el PDF…' : compartirSoportado ? 'Compartir con el PDF adjunto' : '2. Abrir WhatsApp'}
+              {whatsappEnviando
+                ? `Preparando la ${whatsappFormato === 'imagen' ? 'imagen' : 'PDF'}…`
+                : compartirSoportado
+                  ? `Compartir como ${whatsappFormato === 'imagen' ? 'imagen' : 'PDF'}`
+                  : '2. Abrir WhatsApp'}
             </button>
           </>
         }
@@ -934,12 +983,34 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
           <div className="space-y-4">
             {compartirSoportado ? (
               <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
-                Tu celular sí puede adjuntar el PDF automáticamente. Al tocar "Compartir con el PDF adjunto" se genera el PDF y se abre el menú de compartir del teléfono: elige <b>WhatsApp</b> ahí y ya sale con el archivo adjunto, lista para enviar.
+                Tu celular sí puede adjuntar el archivo automáticamente. Al tocar "Compartir" se genera y se abre el menú de compartir del teléfono: elige <b>WhatsApp</b> ahí y ya sale adjunto, listo para enviar.
               </p>
             ) : (
               <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
                 Esta computadora no puede adjuntar el archivo sola (solo funciona en celular, con Chrome o Safari). Por eso son 2 pasos: primero guardas el PDF, luego lo adjuntas tú misma en la conversación (con el clip 📎).
               </p>
+            )}
+
+            {compartirSoportado && (
+              <div>
+                <label className="label">Formato</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setWhatsappFormato('imagen')}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-left text-xs font-semibold transition ${whatsappFormato === 'imagen' ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    Imagen<br /><span className="font-normal text-[11px] text-slate-500">Vista previa directa en el chat</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWhatsappFormato('pdf')}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-left text-xs font-semibold transition ${whatsappFormato === 'pdf' ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    PDF<br /><span className="font-normal text-[11px] text-slate-500">Mejor para imprimir</span>
+                  </button>
+                </div>
+              </div>
             )}
 
             {!compartirSoportado && (
@@ -964,21 +1035,20 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
               <label className="label">Paciente</label>
               <input className="input bg-slate-50" value={whatsappDatos.cliente?.nombre ?? 'Sin paciente'} readOnly />
             </div>
-            <div>
-              <label className="label">Número de WhatsApp</label>
-              <input
-                className="input"
-                value={whatsappTelefono}
-                onChange={(e) => setWhatsappTelefono(e.target.value)}
-                placeholder="Ej: 809-555-1234"
-              />
-              {!whatsappDatos.cliente?.telefono && (
-                <p className="mt-1 text-xs text-amber-600">Este paciente no tiene teléfono guardado en su ficha. Escríbelo aquí para este envío.</p>
-              )}
-              {compartirSoportado && (
-                <p className="mt-1 text-xs text-slate-500">Este número es solo de referencia (para que revises que es el paciente correcto): en el menú de compartir tú eliges el chat de WhatsApp correspondiente.</p>
-              )}
-            </div>
+            {!compartirSoportado && (
+              <div>
+                <label className="label">Número de WhatsApp</label>
+                <input
+                  className="input"
+                  value={whatsappTelefono}
+                  onChange={(e) => setWhatsappTelefono(e.target.value)}
+                  placeholder="Ej: 809-555-1234"
+                />
+                {!whatsappDatos.cliente?.telefono && (
+                  <p className="mt-1 text-xs text-amber-600">Este paciente no tiene teléfono guardado en su ficha. Escríbelo aquí para este envío.</p>
+                )}
+              </div>
+            )}
             <div>
               <label className="label">Mensaje</label>
               <textarea className="input" rows={5} readOnly value={mensajeWhatsApp(whatsappDatos)} />
