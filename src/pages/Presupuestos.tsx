@@ -468,14 +468,15 @@ export default function Presupuestos({ pacienteFijo }: { pacienteFijo?: string }
   }
 
   async function enviarPorWhatsAppDesdeLista(p: Presupuesto) {
-    const cliente = clientes.find((c) => c.id === p.cliente_id) ?? null
+    const { data, error } = await supabase.from('presupuesto_items').select('*').eq('presupuesto_id', p.id).order('id')
+    if (error) return alert('Error al cargar los tratamientos: ' + error.message)
     enviarPorWhatsAppDatos({
       codigo: p.codigo,
       fecha: p.fecha,
       estado: p.estado,
-      cliente,
+      cliente: clientes.find((c) => c.id === p.cliente_id) ?? null,
       empleado: empleados.find((e) => e.id === p.empleado_id) ?? null,
-      renglones: [],
+      renglones: ((data as PresupuestoItem[]) ?? []).map((it) => ({ descripcion: it.descripcion, diente: it.diente == null ? '' : String(it.diente), cantidad: Number(it.cantidad), precio_unit: Number(it.precio_unit) })),
       subtotal: Number(p.subtotal),
       descuento: Number(p.descuento),
       total: Number(p.total),
